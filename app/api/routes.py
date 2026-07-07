@@ -316,7 +316,7 @@ def _build_layer_output(name: str, state: dict) -> dict:
         p = state.get("phenotype_profile")
         if not p:
             return {"phenotypes": []}
-        return {
+        payload = {
             "phenotypes": [
                 {
                     "hpo_id": v.hpo_id,
@@ -329,6 +329,10 @@ def _build_layer_output(name: str, state: dict) -> dict:
                 for v in p.vectors
             ]
         }
+        metrics = state.get("layer1_metrics")
+        if metrics:
+            payload["metrics"] = metrics
+        return payload
     if name == "hypothesis":
         return {
             "hypotheses": [

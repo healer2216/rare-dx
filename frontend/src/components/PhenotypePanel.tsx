@@ -3,13 +3,16 @@
 import { useSessionStore } from '@/store/session'
 
 export default function PhenotypePanel() {
-  const { phenotypeVectors, currentAgent, isStreaming, events, setEvidenceModalLayer, doneLayers } = useSessionStore()
+  const { phenotypeVectors, currentAgent, isStreaming, events, setEvidenceModalLayer, doneLayers, layer1Metrics } = useSessionStore()
   const agent = 'phenotype'
   const isActive = currentAgent === agent
   const isDone = doneLayers.has(agent) || (phenotypeVectors?.length > 0)
   const isPending = !isActive && !isDone
   const evCount = events.filter(e => e.event === 'evidence' && e.data?.source_layer === 'phenotype')
     .reduce((s, e) => s + (e.data?.references?.length || 0), 0)
+  const llmCount = layer1Metrics?.llm_count ?? 0
+  const dictCount = layer1Metrics?.dict_count ?? 0
+  const mergedCount = layer1Metrics?.merged_count ?? 0
 
   return (
     <div className="layer-card" style={{ opacity: isPending ? 0.6 : 1 }}>
@@ -85,6 +88,14 @@ export default function PhenotypePanel() {
                 paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)',
               }}>
                 <span>📄 共 {phenotypeVectors.length} 个表型</span>
+                {layer1Metrics && (
+                  <>
+                    <span>·</span>
+                    <span>LLM: {llmCount}</span>
+                    <span>词典: {dictCount}</span>
+                    <span>合并: {mergedCount}</span>
+                  </>
+                )}
               </div>
             )}
           </>

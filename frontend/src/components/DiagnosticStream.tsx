@@ -23,6 +23,9 @@ export default function DiagnosticStream() {
         switch (event) {
           case 'phenotype_vector':
             useSessionStore.setState({ phenotypeVectors: data.phenotypes || [] })
+            if (data.metrics) {
+              useSessionStore.setState({ layer1Metrics: data.metrics })
+            }
             break
           case 'hypothesis_ranking':
             useSessionStore.setState({ hypotheses: data.hypotheses || [] })

@@ -250,7 +250,96 @@ PHENOTYPE_DICTIONARY: list[dict[str, Any]] = [
     {"keywords":["上行性麻痹"],"hpo_id":"HP:0006986","term_name":"上行性麻痹","default_modifiers":{}},
     {"keywords":["呼吸急促"],"hpo_id":"HP:0011947","term_name":"呼吸急促","default_modifiers":{}},
     {"keywords":["多尿"],"hpo_id":"HP:0011952","term_name":"多尿","default_modifiers":{}},
-    {"keywords":["喂养困难"],"hpo_id":"HP:0011968","term_name":"喂养困难","default_modifiers":{}}]
+    {"keywords":["喂养困难"],"hpo_id":"HP:0011968","term_name":"喂养困难","default_modifiers":{}},
+]
+# 为常见临床表述提供更多同义词/别名/拼音/缩写映射
+SYNONYM_EXTENSIONS: dict[str, list[str]] = {
+    # 神经肌肉
+    "HP:0001290": ["肌张力低", "肌张力减弱", "floppy", "松软", "软婴儿", "低张力"],
+    "HP:0001250": ["抽搐", "惊厥", "羊癫疯", "seizure", "抽风", "突然倒地"],
+    "HP:0001268": ["发育退步", "以前会现在不会", "技能丧失", "regression"],
+    "HP:0001270": ["发育落后", "大运动落后", "不会抬头", "不会坐", "不会走", "motor delay"],
+    "HP:0001263": ["说话晚", "不会说话", "语言落后", "speech delay", "言语少"],
+    "HP:0001251": ["走路不稳", "摇摇晃晃", "醉汉步态", "ataxia", "共济失调步态"],
+    "HP:0001332": ["眼球乱转", "眼球跳动", "眼睛抖动", "nystagmus", "眼球震颤"],
+    "HP:0001324": ["没劲", "抬不起胳膊", "举不起来", "weakness", "肌力下降"],
+    "HP:0001347": ["肌肉跳动", "肌阵挛", "myoclonus"],
+    "HP:0001257": ["腿硬", "剪刀步态", "spastic", "痉挛", "肌张力高", "腱反射亢进"],
+
+    # 代谢/生化
+    "HP:0002154": ["乳酸高", "乳酸高值", "血乳酸", "lactic acidosis", "乳酸酸中毒"],
+    "HP:0003073": ["血氨高", "ammonia", "高氨血症"],
+    "HP:0001943": ["血糖低", "低血糖发作", "hypoglycemia", "低血糖症"],
+    "HP:0003074": ["血糖高", "高血糖", "hyperglycemia", "糖尿病"],
+    "HP:0012135": ["酮症酸中毒", "酮体", "ketoacidosis", "酮尿"],
+    "HP:0002910": ["转氨酶高", "ALT高", "AST高", "肝酶升高", "肝功能异常"],
+    "HP:0002240": ["肝脏大", "肝大", "hepatomegaly", "肝脾大"],
+    "HP:0001744": ["脾脏大", "脾大", "splenomegaly", "巨脾"],
+    "HP:0003236": ["CK高", "肌酶高", "creatine kinase", "肌酸激酶升高"],
+    "HP:0002900": ["钾低", "血钾低", "低钾血症", "hypokalemia"],
+    "HP:0002908": ["镁低", "血镁低", "hypomagnesemia"],
+    "HP:0003557": ["碱中毒", "代谢性碱中毒", "metabolic alkalosis", "HCO3高"],
+    "HP:0003118": ["尿钾高", "尿钾排泄多", "尿钾升高"],
+    "HP:0000863": ["肾素高", "醛固酮高", "肾素醛固酮", "RAAS激活"],
+
+    # 影像/结构
+    "HP:0002011": ["基底节病变", "壳核信号", "苍白球信号", "basal ganglia", "T2高信号"],
+    "HP:0002500": ["白质病变", "脱髓鞘", "white matter", "脑白质异常", "白质疏松"],
+    "HP:0000556": ["视网膜问题", "视网膜病变", "retinal", "视力问题"],
+    "HP:0000518": ["白内障", "晶体混浊", "cataract"],
+    "HP:0000648": ["视神经萎缩", "视盘苍白", "optic atrophy"],
+
+    # 皮肤/其他
+    "HP:0001010": ["皮肤黑", "皮肤颜色深", "hyperpigmentation", "色素沉着", "皮肤色沉"],
+    "HP:0000988": ["红疹", "皮疹", "rash", "红斑", "斑丘疹", "皮肤疹"],
+    "HP:0000952": ["皮肤黄", "巩膜黄", "黄疸", "jaundice", "皮肤黄染"],
+    "HP:0000137": ["浮肿", "水肿", "edema", "皮下肿"],
+    "HP:0000098": ["肠子肿", "肠壁增厚", "肠壁水肿"],
+    "HP:0000056": ["喉咙肿", "上呼吸道水肿", "喉头水肿"],
+    "HP:0000123": ["角膜白", "角膜混浊", "corneal opacity"],
+    "HP:0000238": ["脸型异常", "面部畸形", "特殊面容", "face anomaly"],
+    "HP:0000380": ["听不到", "耳聋", "hearing loss", "感音神经性耳聋"],
+    "HP:0000508": ["眼皮抬不起来", "上睑下垂", "ptosis"],
+    "HP:0000639": ["视神经问题", "视神经萎缩", "optic atrophy"],
+
+    # 全身/其他
+    "HP:0001903": ["贫血", "血红蛋白低", "anemia", "血色素低"],
+    "HP:0001945": ["发烧", "发热", "fever", "高热"],
+    "HP:0002098": ["喘", "呼吸困难", "dyspnea", "呼吸急促", "气促", "tachypnea"],
+    "HP:0012735": ["咳", "咳嗽", "cough"],
+    "HP:0002013": ["吐", "呕吐", "vomiting", "恶心"],
+    "HP:0002014": ["拉稀", "腹泻", "diarrhea", "水样便"],
+    "HP:0002019": ["便秘", "排便困难", "constipation"],
+    "HP:0002027": ["肚子疼", "腹痛", "abdominal pain"],
+    "HP:0000103": ["尿多", "多尿", "polyuria", "尿频"],
+    "HP:0001959": ["喝水多", "多饮", "polydipsia", "烦渴"],
+    "HP:0000093": ["尿蛋白", "蛋白尿", "proteinuria"],
+    "HP:0002902": ["钠低", "低钠血症", "hyponatremia", "低血钠"],
+    "HP:0002615": ["血压低", "低血压", "hypotension"],
+    "HP:0004372": ["昏迷", "意识不清", "lethargy", "意识障碍", "嗜睡"],
+    "HP:0004325": ["瘦", "体重下降", "weight loss", "消瘦"],
+    "HP:0012378": ["累", "乏力", "fatigue", "易疲劳", "精神差"],
+    "HP:0004322": ["矮", "身材矮小", "short stature", "生长慢"],
+    "HP:0000729": ["自闭", "孤独症", "autism", "社交差", "刻板"],
+    "HP:0000365": ["听力差", "耳聋", "hearing loss"],
+    "HP:0000252": ["头小", "小头", "microcephaly", "头围小"],
+    "HP:0000961": ["紫", "发紫", "发绀", "cyanosis", "口唇青紫"],
+    "HP:0001624": ["心电图异常", "心电图问题"],
+    "HP:0001627": ["肺充血", "肺血多"],
+    "HP:0001639": ["心脏大", "扩心病", "扩张型心肌病"],
+    "HP:0001640": ["心脏杂音", "murmur", "心杂音"],
+    "HP:0002750": ["脊髓问题", "脊髓畸形"],
+    "HP:0002788": ["氧低", "低氧血症", "缺氧"],
+    "HP:0003128": ["钠低", "低钠血症", "hyponatremia"],
+    "HP:0003198": ["CK高", "血清CK升高"],
+    "HP:0003745": ["假性肌肥大", "肌肉假肥大"],
+    "HP:0003808": ["易累", "易疲劳"],
+    "HP:0004360": ["多饮", "喝水多"],
+    "HP:0006986": ["上行性麻痹", "ascending paralysis"],
+    "HP:0011947": ["呼吸急促", "呼吸快"],
+    "HP:0011952": ["多尿", "尿多"],
+    "HP:0011968": ["喂养困难", "吃奶差"],
+}
 
 # 修饰符关键词映射
 MODIFIER_KEYWORDS = {
@@ -316,15 +405,19 @@ def _extract_modifiers(text: str, defaults: dict[str, str]) -> PhenotypeModifier
 
 
 def extract_phenotypes(text: str) -> list[PhenotypeVector]:
-    """从临床文本提取表型向量列表。"""
+    """从临床文本提取表型向量列表（支持精确匹配 + 模糊匹配）。"""
     vectors: list[PhenotypeVector] = []
     seen_hpo: set[str] = set()
+    text_lower = text.lower()
 
+    # ===== 第一轮：精确匹配 =====
     for entry in PHENOTYPE_DICTIONARY:
         matched = False
+        matched_kw = ""
         for kw in entry["keywords"]:
-            if kw in text or kw.lower() in text.lower():
+            if kw in text or kw.lower() in text_lower:
                 matched = True
+                matched_kw = kw
                 break
         if not matched:
             continue
@@ -344,8 +437,41 @@ def extract_phenotypes(text: str) -> list[PhenotypeVector]:
             presence=PresenceStatus.PRESENT,
             onset_age=onset_age,
             onset_age_unit=onset_unit,
-            raw_description=kw if (kw := next((k for k in entry["keywords"] if k in text), "")) else "",
+            raw_description=matched_kw,
         ))
+
+    # ===== 第二轮：模糊匹配（同义词扩展 + 部分匹配）=====
+    fuzzy_matched_hpo: set[str] = set()
+    for hpo_id, synonyms in SYNONYM_EXTENSIONS.items():
+        if hpo_id in seen_hpo or hpo_id in fuzzy_matched_hpo:
+            continue
+        for syn in synonyms:
+            syn_lower = syn.lower()
+            # 支持部分匹配：只要同义词出现在文本中即认为匹配
+            if syn in text or syn_lower in text_lower:
+                # 查找该 HPO 的标准词条
+                entry = next((e for e in PHENOTYPE_DICTIONARY if e["hpo_id"] == hpo_id), None)
+                if entry is None:
+                    # 词典中没有，创建一个最小条目
+                    entry = {
+                        "hpo_id": hpo_id,
+                        "term_name": hpo_id,  # 临时用 ID，后续 LLM 会修正
+                        "keywords": [syn],
+                        "default_modifiers": {},
+                    }
+                fuzzy_matched_hpo.add(hpo_id)
+                modifiers = _extract_modifiers(text, entry.get("default_modifiers", {}))
+                onset_age, onset_unit = _extract_onset_age(text)
+                vectors.append(PhenotypeVector(
+                    hpo_id=hpo_id,
+                    term_name=entry["term_name"],
+                    modifiers=[modifiers],
+                    presence=PresenceStatus.PRESENT,
+                    onset_age=onset_age,
+                    onset_age_unit=onset_unit,
+                    raw_description=syn,
+                ))
+                break  # 一个 HPO 只匹配一次
 
     return vectors
 
@@ -428,6 +554,7 @@ async def run_with_knows(
 
     # ===== LLM 表型提取（主力，覆盖全 HPO）=====
     llm_used = False
+    llm_err: str | None = None
     llm_vectors: list[PhenotypeVector] = []
     if llm_gateway is not None:
         try:
@@ -436,23 +563,33 @@ async def run_with_knows(
             )
             llm_vectors = llm_profile.vectors
             llm_used = True
-        except Exception:
+        except Exception as e:
             llm_vectors = []
+            llm_err = f"{type(e).__name__}: {e}"
 
     # ===== 词典提取（兜底，补充 LLM 遗漏的常见表型）=====
     dict_vectors = extract_phenotypes(text)
     demographic = extract_demographic(text)
 
-    # 合并去重：**LLM 为底座，词典补充**
+    # ===== 合并去重：LLM 为底座，词典补充；按 HPO ID + term_name 双维度去重 =====
     merged = list(llm_vectors)
-    seen_hpo = {v.hpo_id for v in merged if v.hpo_id and not v.hpo_id.startswith("LLM:")}
-    seen_terms = {v.term_name for v in merged}
+    seen_hpo: set[str] = set()
+    seen_terms: set[str] = set()
+    for v in merged:
+        if v.hpo_id and not v.hpo_id.startswith("LLM:"):
+            seen_hpo.add(v.hpo_id)
+        if v.term_name:
+            seen_terms.add(v.term_name)
+
     for dv in dict_vectors:
-        key = dv.hpo_id if dv.hpo_id and not dv.hpo_id.startswith("LLM:") else dv.term_name
-        if key and key not in seen_hpo and dv.term_name not in seen_terms:
+        # 优先用 HPO ID 去重；若 ID 是临时 LLM: 前缀，则用 term_name 去重
+        dict_key = dv.hpo_id if dv.hpo_id and not dv.hpo_id.startswith("LLM:") else dv.term_name
+        if dict_key and dict_key not in seen_hpo and dv.term_name not in seen_terms:
             merged.append(dv)
-            seen_hpo.add(key)
-            seen_terms.add(dv.term_name)
+            if dict_key:
+                seen_hpo.add(dict_key)
+            if dv.term_name:
+                seen_terms.add(dv.term_name)
 
     profile = PhenotypeProfile(
         patient_id=session_id,
@@ -461,11 +598,35 @@ async def run_with_knows(
         demographic=demographic,
     )
 
+    # ===== 日志：LLM vs 词典提取统计 =====
+    import logging
+    _logger = logging.getLogger(__name__)
+    log_payload = {
+        "layer": "phenotype",
+        "session_id": session_id,
+        "llm_used": llm_used,
+        "llm_count": len(llm_vectors),
+        "dict_count": len(dict_vectors),
+        "merged_count": len(merged),
+        "text_length": len(text),
+    }
+    if llm_err:
+        log_payload["llm_error"] = llm_err
+    if llm_used and len(llm_vectors) < 3:
+        log_payload["llm_warning"] = f"LLM 仅提取 {len(llm_vectors)} 项，可能未完全遵循指令"
+    _logger.info("phenotype_layer1_extraction", extra=log_payload)
+
     result = {
         "phenotype_profile": profile,
         "patient_profile": {"raw_input": text, **demographic},
         "llm_extracted": llm_used,
         "llm_supplement_count": len(llm_vectors),
+        "layer1_metrics": {
+            "llm_count": len(llm_vectors),
+            "dict_count": len(dict_vectors),
+            "merged_count": len(merged),
+            "llm_error": llm_err,
+        },
     }
 
     if not profile.vectors:
@@ -496,38 +657,45 @@ async def run_with_knows(
 
 _LLM_SYSTEM_PROMPT = """你是一位罕见病临床表型分析专家。请从患者临床描述中提取结构化表型信息，映射到 HPO（Human Phenotype Ontology）标准术语。
 
+## 核心任务
+从临床文本中**全面、无遗漏**地提取所有表型，包括：
+1. **明确提及**的症状、体征、检查异常
+2. **强烈暗示**的表型（如"软"暗示肌张力低下，"吃奶差"暗示喂养困难）
+3. **系统层面**的表现（神经、代谢、心血管、呼吸、消化、肾脏、皮肤、眼、耳等各系统）
+
 ## 输出要求
-请输出 JSON 数组，每个元素是一个表型向量，包含：
-- hpo_id: HPO 标准 ID（格式 HP:xxxxxxx，7位数字）
+请输出 JSON 对象，顶层必须是 {"phenotypes": [...]}，数组包含 5-15 个表型向量：
+- hpo_id: HPO 标准 ID（格式 HP:xxxxxxx，7位数字，尽量真实）
 - term_name: 术语名称（中文）
-- presence: present / absent / unknown
+- presence: present / absent / unknown（默认为 present）
 - onset_age: 发病年龄数值（数字，无则 null）
 - onset_age_unit: years / months / days / weeks（无则 null）
 - severity: mild / moderate / severe / life_threatening（无则 null）
 - modifiers: 修饰符对象，含 distribution/temporal_pattern/laterality/progression_rate（无则省略键）
 
-## 规则
-1. **必须提取所有**明确提及或强烈暗示的表型，不要遗漏，至少提取 3 个以上
-2. 必须使用真实的 HPO ID（如 HP:0001250 肌张力低下、HP:0002154 乳酸酸中毒）
-3. 如果无法确定 HPO ID，给最接近的术语，hpo_id 留空字符串
-4. 输出纯 JSON 对象，不要任何解释文字
-5. 必须用 {"phenotypes": [...]} 包装数组（顶层必须是对象），phenotypes 数组含所有表型
+## 规则（必须遵守）
+1. **数量要求**：至少提取 5 个以上表型，宁多勿少
+2. **覆盖要求**：必须覆盖多个系统（如神经 + 代谢 + 影像 + 其他），不要只提取 1-2 个
+3. **暗示推断**：根据临床描述推断隐含表型（如"乳酸酸中毒"暗示代谢异常，"基底节T2高信号"暗示神经影像异常）
+4. **HPO 映射**：尽量使用真实 HPO ID，常见参考：
+   - HP:0001290 肌张力低下 / HP:0002033 喂养困难 / HP:0002154 乳酸性酸中毒
+   - HP:0002011 基底节区MRI异常信号 / HP:0001332 眼球运动异常 / HP:0001250 癫痫发作
+   - HP:0001268 发育倒退 / HP:0001270 运动发育迟缓 / HP:0001263 语言发育迟缓
+   - HP:0002500 脑白质MRI异常 / HP:0001257 痉挛性截瘫 / HP:0001324 肌无力
+   - HP:0002900 低钾血症 / HP:0003557 代谢性碱中毒 / HP:0000863 肾素-醛固酮系统激活
+   - HP:0001010 皮肤色素沉着 / HP:0000556 视网膜变性 / HP:0000518 白内障
+5. **输出格式**：纯 JSON，不要任何解释文字或 markdown 代码块
+6. **包装格式**：顶层必须是 {"phenotypes": [...]}， phenotypes 数组含所有表型
 
-## 输出格式（示例）
-输入: "男婴3月龄肌张力低下喂养困难乳酸酸中毒"
+## 示例
+输入: "男婴3月龄，进行性肌张力低下，喂养困难，乳酸性酸中毒，眼球震颤"
 输出: {"phenotypes": [
-  {"hpo_id": "HP:0001290", "term_name": "肌张力低下", "presence": "present", "onset_age": 3, "onset_age_unit": "months", "severity": null, "modifiers": {}},
+  {"hpo_id": "HP:0001290", "term_name": "肌张力低下", "presence": "present", "onset_age": 3, "onset_age_unit": "months", "severity": null, "modifiers": {"temporal_pattern": "progressive"}},
   {"hpo_id": "HP:0002033", "term_name": "喂养困难", "presence": "present", "onset_age": 3, "onset_age_unit": "months", "severity": null, "modifiers": {}},
-  {"hpo_id": "HP:0002154", "term_name": "乳酸性酸中毒", "presence": "present", "onset_age": 3, "onset_age_unit": "months", "severity": "severe", "modifiers": {}}
-]}
-
-## 常见 HPO 术语参考
-- HP:0001290 肌张力低下 / HP:0002033 喂养困难 / HP:0002154 乳酸性酸中毒
-- HP:0002011 基底节区MRI异常信号 / HP:0001332 眼球运动异常 / HP:0001250 癫痫发作
-- HP:0001268 发育倒退 / HP:0001010 皮肤色素沉着 / HP:0002315 VLCFA升高
-- HP:0002500 脑白质MRI异常 / HP:0001257 痉挛性截瘫 / HP:0002900 低钾血症
-- HP:0002908 低镁血症 / HP:0003557 代谢性碱中毒 / HP:0003118 尿钾升高
-- HP:0000863 肾素-醛固酮系统激活 / HP:0000556 视网膜变性 / HP:0001324 肌无力"""
+  {"hpo_id": "HP:0002154", "term_name": "乳酸性酸中毒", "presence": "present", "onset_age": 3, "onset_age_unit": "months", "severity": "severe", "modifiers": {"temporal_pattern": "persistent"}},
+  {"hpo_id": "HP:0001332", "term_name": "眼球运动异常", "presence": "present", "onset_age": 3, "onset_age_unit": "months", "severity": null, "modifiers": {"laterality": "bilateral"}},
+  {"hpo_id": "HP:0002011", "term_name": "基底节区MRI异常信号", "presence": "present", "onset_age": null, "onset_age_unit": null, "severity": null, "modifiers": {"laterality": "bilateral"}}
+]}"""
 
 
 async def _extract_phenotypes_with_llm(

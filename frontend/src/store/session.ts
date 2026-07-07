@@ -14,6 +14,7 @@ interface SessionState {
   events: Array<{ event: string; data: any }>
   doneLayers: Set<string>
   evidenceModalLayer: string | null
+  layer1Metrics: Record<string, any> | null
 
   setUserMessage: (msg: string) => void
   setStreaming: (v: boolean) => void
@@ -34,6 +35,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   pathway: null,
   report: null,
   evidenceModalLayer: null,
+  layer1Metrics: null,
   doneLayers: new Set<string>(),
   events: [],
 
@@ -65,6 +67,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       report: null,
       events: [],
       evidenceModalLayer: null,
+      layer1Metrics: null,
       doneLayers: new Set<string>(),
     }),
 }))
