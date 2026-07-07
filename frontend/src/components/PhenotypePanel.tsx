@@ -13,6 +13,8 @@ export default function PhenotypePanel() {
   const llmCount = layer1Metrics?.llm_count ?? 0
   const dictCount = layer1Metrics?.dict_count ?? 0
   const mergedCount = layer1Metrics?.merged_count ?? 0
+  const llmBelowThreshold = layer1Metrics?.llm_below_threshold ?? false
+  const fallbackBase = layer1Metrics?.fallback_base ?? false
 
   return (
     <div className="layer-card" style={{ opacity: isPending ? 0.6 : 1 }}>
@@ -94,6 +96,16 @@ export default function PhenotypePanel() {
                     <span>LLM: {llmCount}</span>
                     <span>词典: {dictCount}</span>
                     <span>合并: {mergedCount}</span>
+                    {fallbackBase && (
+                      <span style={{ color: 'var(--success)', fontWeight: 500 }}>
+                        · 词典兜底为主
+                      </span>
+                    )}
+                    {!fallbackBase && llmBelowThreshold && (
+                      <span style={{ color: 'var(--warning)' }}>
+                        · LLM 少于3项，已补充
+                      </span>
+                    )}
                   </>
                 )}
               </div>

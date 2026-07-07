@@ -531,10 +531,11 @@ async def run_with_knows(
     knows_client: KnowsClient,
     llm_gateway: LLMGateway | None = None,
 ) -> dict:
-    """Layer 1 异步版本：LLM 表型提取 + KnowS 检索验证。
+    """Layer 1 异步版本：LLM 表型提取 + 词典兜底 + KnowS 检索验证。
 
-    LLM 优先路径：用 LLM 做表型 NER（更精准，支持复杂表述）
-    词典兜底路径：LLM 失败时降级到关键词词典（保证可用性）
+    提取策略（两路并行，按置信度择优合并）：
+    - LLM 主力路径：要求返回 {"phenotypes": [...]}，至少 3 项
+    - 词典兜底路径：LLM 失败 / 返回少于 3 项时，以词典结果为底座补充
 
     KnowS 策略（PRD §4.2 Layer 1）：
     - 源：guide
@@ -552,8 +553,9 @@ async def run_with_knows(
         else state.get("session_id", "")
     )
 
-    # ===== LLM 表型提取（主力，覆盖全 HPO）=====
+    # ===== LLM 表型提取（主力路径，要求 ≥3 项）=====
     llm_used = False
+    llm_below_threshold = False
     llm_err: str | None = None
     llm_vectors: list[PhenotypeVector] = []
     if llm_gateway is not None:
@@ -563,16 +565,30 @@ async def run_with_knows(
             )
             llm_vectors = llm_profile.vectors
             llm_used = True
+            # 不达 3 项基线视为「LLM 不可靠」，词典兜底补齐
+            if len(llm_vectors) < 3:
+                llm_below_threshold = True
         except Exception as e:
             llm_vectors = []
+            llm_below_threshold = True
             llm_err = f"{type(e).__name__}: {e}"
 
-    # ===== 词典提取（兜底，补充 LLM 遗漏的常见表型）=====
+    # ===== 词典兜底路径（LLM 失败 / 少于 3 项时以此为底座补充）=====
     dict_vectors = extract_phenotypes(text)
     demographic = extract_demographic(text)
 
-    # ===== 合并去重：LLM 为底座，词典补充；按 HPO ID + term_name 双维度去重 =====
-    merged = list(llm_vectors)
+    # ===== 合并去重：置信度择优 =====
+    # 策略：
+    # - 若 LLM ≥3 项：LLM 为底座，词典补充遗漏
+    # - 若 LLM <3 项或失败：词典为底座，LLM 补充（若有少量结果）
+    if llm_used and not llm_below_threshold:
+        merged = list(llm_vectors)
+        supplement = dict_vectors
+    else:
+        # 词典兜底为主
+        merged = list(dict_vectors)
+        supplement = llm_vectors
+
     seen_hpo: set[str] = set()
     seen_terms: set[str] = set()
     for v in merged:
@@ -581,8 +597,7 @@ async def run_with_knows(
         if v.term_name:
             seen_terms.add(v.term_name)
 
-    for dv in dict_vectors:
-        # 优先用 HPO ID 去重；若 ID 是临时 LLM: 前缀，则用 term_name 去重
+    for dv in supplement:
         dict_key = dv.hpo_id if dv.hpo_id and not dv.hpo_id.startswith("LLM:") else dv.term_name
         if dict_key and dict_key not in seen_hpo and dv.term_name not in seen_terms:
             merged.append(dv)
@@ -606,6 +621,8 @@ async def run_with_knows(
         "session_id": session_id,
         "llm_used": llm_used,
         "llm_count": len(llm_vectors),
+        "llm_below_threshold": llm_below_threshold,
+        "fallback_used": llm_below_threshold,
         "dict_count": len(dict_vectors),
         "merged_count": len(merged),
         "text_length": len(text),
@@ -613,18 +630,23 @@ async def run_with_knows(
     if llm_err:
         log_payload["llm_error"] = llm_err
     if llm_used and len(llm_vectors) < 3:
-        log_payload["llm_warning"] = f"LLM 仅提取 {len(llm_vectors)} 项，可能未完全遵循指令"
+        log_payload["llm_warning"] = (
+            f"LLM 仅提取 {len(llm_vectors)} 项（<3 基线），已启用词典兜底为底座"
+        )
     _logger.info("phenotype_layer1_extraction", extra=log_payload)
 
     result = {
         "phenotype_profile": profile,
         "patient_profile": {"raw_input": text, **demographic},
         "llm_extracted": llm_used,
+        "llm_below_threshold": llm_below_threshold,
         "llm_supplement_count": len(llm_vectors),
         "layer1_metrics": {
             "llm_count": len(llm_vectors),
             "dict_count": len(dict_vectors),
             "merged_count": len(merged),
+            "llm_below_threshold": llm_below_threshold,
+            "fallback_base": llm_below_threshold,
             "llm_error": llm_err,
         },
     }
