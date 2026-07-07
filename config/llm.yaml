@@ -1,0 +1,47 @@
+# LLM Provider Configuration
+# 默认供应商及故障转移链
+
+default_provider: deepseek
+fallback_chain:
+  - deepseek
+  - openai
+  - qwen
+  - stepfun
+
+providers:
+  deepseek:
+    base_url: https://api.deepseek.com/v1
+    model: deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY
+    temperature: 0.3
+    max_tokens: 4096
+
+  openai:
+    base_url: https://api.openai.com/v1
+    model: gpt-4o
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.3
+    max_tokens: 4096
+
+  qwen:
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-plus
+    api_key_env: QWEN_API_KEY
+    temperature: 0.3
+    max_tokens: 4096
+
+  stepfun:
+    base_url: https://api.stepfun.com/step_plan/v1
+    model: step-3.7-flash
+    api_key_env: STEPFUN_API_KEY
+    temperature: 0.3
+    max_tokens: 4096
+
+# 各 Agent 推荐 LLM 选型
+agent_model_map:
+  phenotype_analyzer: deepseek
+  hypothesis_generator: deepseek
+  temporal_reasoner: deepseek
+  genetic_reasoner: openai
+  pathway_planner: deepseek
+  report_synthesizer: openai

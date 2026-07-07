@@ -1,0 +1,29 @@
+{
+  "case_id": "case_01",
+  "case_name": "D1: Leigh综合征（3月龄男婴肌张力低下乳酸酸中毒）",
+  "clinical_text": "男婴，3月龄，进行性肌张力低下，喂养困难，乳酸性酸中毒（血乳酸 5.2 mmol/L），眼球震颤",
+  "expected": {
+    "l1_phenotype_count": 6,
+    "l1_phenotypes": [
+      "HP:0001290",
+      "HP:0002154",
+      "HP:0002033",
+      "HP:0001332"
+    ],
+    "l2_top1_disease_id": "ORPHA:520",
+    "l2_top1_disease_name": "Leigh综合征",
+    "l2_top1_posterior": 0.0,
+    "l2_hypothesis_count": 10,
+    "l3_match_count": 5,
+    "l4_inheritance_patterns": [
+      {
+        "mode": "MITOCHONDRIAL",
+        "confidence": 0.5
+      }
+    ],
+    "l5_step_count": 5,
+    "l5_top1_test_name": "PDHA1 基因测序",
+    "l6_has_disclaimer": true,
+    "l6_has_llm_impression": false
+  }
+}

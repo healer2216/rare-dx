@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-deep: #080E24;
+  --bg-card: #0F1A36;
+  --bg-surface: #162044;
+  --cyan: #00D4FF;
+  --cyan-dim: rgba(0, 212, 255, 0.12);
+  --purple: #7C3AED;
+  --gradient-dna-horizontal: linear-gradient(90deg, #7C3AED, #00D4FF);
+  --text-primary: #E2E8F0;
+  --text-muted: #64748B;
+  --text-dim: #475569;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --border: rgba(0, 212, 255, 0.12);
+  --border-hover: rgba(0, 212, 255, 0.3);
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+html, body {
+  background: var(--bg-deep);
+  background-image:
+    linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+/* ===== Pipeline Sidebar ===== */
+.pipeline-step::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  bottom: -4px;
+  width: 1px;
+  height: 8px;
+  background: var(--border);
+}
+.pipeline-step:last-child::after { display: none; }
+
+/* ===== Layer Cards ===== */
+.layer-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: opacity 0.5s ease, border-color 0.3s;
+}
+.layer-card:hover { border-color: var(--border-hover); }
+
+/* ===== Hypothesis Cards ===== */
+.hypothesis-card.rank-1 { border-left: 3px solid var(--cyan); }
+.hypothesis-card.rank-2 { border-left: 3px solid var(--purple); }
+.hypothesis-card.rank-3 { border-left: 3px solid var(--text-dim); }
+
+/* ===== Confidence Bar ===== */
+.hypo-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--gradient-dna-horizontal);
+  transition: width 0.6s ease;
+}
+
+/* ===== Pulse Bar ===== */
+.pulse-bar {
+  width: 60px; height: 3px;
+  background: var(--gradient-dna-horizontal);
+  border-radius: 2px;
+  animation: pulse-width 1.5s ease-in-out infinite;
+}
+@keyframes pulse-width {
+  0%, 100% { width: 20px; opacity: 0.3; }
+  50% { width: 60px; opacity: 1; }
+}
+@keyframes pulse-status {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

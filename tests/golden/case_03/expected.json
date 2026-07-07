@@ -1,0 +1,22 @@
+{
+  "case_id": "case_03",
+  "case_name": "D3: X-连锁肾上腺脑白质营养不良（5岁男 发育倒退 VLCFA升高）",
+  "clinical_text": "患儿男，5岁。主诉：进行性行为和认知功能倒退1年。现病史：1年前（4岁）起，家长发现患儿注意力下降，学习成绩退步（已上幼儿园大班），逐渐出现行为异常，易激惹、攻击行为。近半年出现走路不稳，频繁跌倒。近3月视力下降明显。查体：皮肤可见散在色素沉着斑（非日晒部位），以躯干为著。神经系统：认知功能评估低于同龄2个标准差。四肢肌张力增高，腱反射亢进，双侧Babinski征阳性。步态不稳，宽基步态。视力检查示视敏度下降。实验室检查：血极长链脂肪酸(VLCFA)升高（C26:0 1.2μmol/L，正常<0.5），C26:0/C22:0比值升高。头颅MRI：双侧顶枕叶白质对称性异常信号，增强后病灶边缘强化。",
+  "expected": {
+    "l1_phenotype_count": 7,
+    "l2_top1_disease_id": "ORPHA:64",
+    "l2_top1_disease_name": "X-连锁肾上腺脑白质营养不良",
+    "l2_top1_posterior": 0.0,
+    "l2_hypothesis_count": 2,
+    "l3_match_count": 1,
+    "l4_inheritance_patterns": [
+      {
+        "mode": "XR",
+        "confidence": 0.5
+      }
+    ],
+    "l5_step_count": 4,
+    "l5_top1_test_name": "血浆极长链脂肪酸 (VLCFA)",
+    "l6_has_disclaimer": true
+  }
+}

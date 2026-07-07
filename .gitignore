@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.env
+.venv/
+venv/
+*.log
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+
+# Databases
+*.db
+*.sqlite
+checkpoints.db
+
+# IDE
+.idea/
+.vscode/
+.DS_Store/
+
+# Rare-dx runtime
+raredx.db
+app/audit/

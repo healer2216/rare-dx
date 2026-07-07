@@ -1,0 +1,34 @@
+{
+  "case_id": "case_01",
+  "title": "线粒体病 — Leigh 综合征",
+  "description": "男婴，3月龄，进行性肌张力低下，喂养困难，乳酸性酸中毒",
+  "patient": {
+    "age": 3,
+    "age_unit": "months",
+    "sex": "male",
+    "ethnicity": "汉族",
+    "region": "中国南方"
+  },
+  "clinical_text": "患儿男，3月龄。主诉：进行性肌张力低下2月余，伴喂养困难。现病史：患儿生后1月余出现吸吮无力，逐渐加重，目前完全无法经口喂养，需鼻饲。近1月出现头控差、四肢活动减少。无抽搐发作。母亲孕期无异常。出生史：G1P1，足月顺产，出生体重3.2kg，Apgar评分正常。家族史：无类似疾病家族史，父母非近亲婚配。查体：意识清楚，反应稍差。全身肌张力明显低下，以轴性肌张力为主。四肢肌力约3级。腱反射减弱。眼球运动稍受限。实验室检查：血乳酸 5.2mmol/L（正常<2.0），丙酮酸 0.35mmol/L（升高），CK正常。头颅MRI：双侧基底节区（壳核、苍白球）对称性T2高信号，脑干背侧亦见对称性异常信号。",
+  "expected_diagnosis": {
+    "disease_id": "ORPHA:520",
+    "disease_name": "Leigh综合征",
+    "orpha_number": "520",
+    "inheritance": "线粒体遗传 / 常染色体隐性",
+    "key_genes": ["MT-ATP6", "SURF1", "NDUFS4"]
+  },
+  "key_phenotypes": [
+    {"hpo_id": "HP:0001290", "term_name": "肌张力低下", "frequency": 0.95},
+    {"hpo_id": "HP:0002033", "term_name": "喂养困难", "frequency": 0.85},
+    {"hpo_id": "HP:0002154", "term_name": "乳酸性酸中毒", "frequency": 0.90},
+    {"hpo_id": "HP:0002011", "term_name": "基底节区MRI异常信号", "frequency": 0.88},
+    {"hpo_id": "HP:0001332", "term_name": "眼球运动异常", "frequency": 0.60},
+    {"hpo_id": "HP:0001250", "term_name": "进行性神经系统退化", "frequency": 0.92}
+  ],
+  "demo_script": {
+    "round_1": "输入临床文本 → 观察5层推理流水线执行",
+    "round_2": "补充'母亲有轻度听力下降' → 观察遗传推理回流（线粒体遗传置信度提升）",
+    "round_3": "补充'基因检测示MT-ATP6 m.8993T>G突变' → 观察确诊收敛",
+    "round_4": "查看最终报告 → 展示循证引用和诊断路径"
+  }
+}

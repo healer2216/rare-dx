@@ -1,0 +1,35 @@
+# 五层推理引擎配置
+
+# 贝叶斯推理参数
+bayesian:
+  frequency_table_path: data/hpo_frequency/orphanet_freq.json
+  min_posterior_threshold: 0.01
+  max_hypotheses: 20
+  demographic_prior_weight: 1.0
+
+# 时序推理参数
+temporal:
+  onset_age_tolerance: 0.3
+  progression_weight: 0.4
+  sequence_weight: 0.3
+  min_temporal_score: 0.2
+
+# 遗传推理参数
+genetic:
+  consanguinity_prior_boost: 2.0
+  inheritance_confidence_threshold: 0.5
+  max_inheritance_patterns: 3
+
+# EVOI 诊断路径参数
+pathway:
+  information_gain_weight: 0.6
+  risk_penalty_weight: 0.2
+  cost_penalty_weight: 0.2
+  max_steps: 5
+  min_evoi_threshold: 0.1
+
+# 回流控制
+backflow:
+  max_iterations: 2
+  genetic_to_hypothesis: true
+  pathway_to_phenotype: true

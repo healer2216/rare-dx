@@ -1,0 +1,22 @@
+{
+  "case_id": "case_02",
+  "case_name": "D2: Gitelman综合征（12岁女 低钾麻痹 肾小管酸中毒）",
+  "clinical_text": "患儿女，12岁。主诉：反复四肢无力2年，加重3天。现病史：2年前首次出现四肢无力，不能站立，查血钾1.8mmol/L，补钾后好转。此后反复出现类似发作，每1-2月一次，多在运动后或饱餐后发作。近3天再次出现四肢无力。平素喜咸食，饮水量多，尿量偏多。查体：血压90/60mmHg（偏低），四肢肌力3级，腱反射减弱。实验室检查：血钾2.1mmol/L，血钠132mmol/L，血氯90mmol/L，血镁0.5mmol/L（降低），尿钾45mmol/24h（升高），代谢性碱中毒（pH 7.52，HCO3- 32mmol/L），肾素活性升高，醛固酮升高。",
+  "expected": {
+    "l1_phenotype_count": 6,
+    "l2_top1_disease_id": "ORPHA:2136",
+    "l2_top1_disease_name": "Gitelman",
+    "l2_top1_posterior": 0.0,
+    "l2_hypothesis_count": 4,
+    "l3_match_count": 1,
+    "l4_inheritance_patterns": [
+      {
+        "mode": "AR",
+        "confidence": 0.5
+      }
+    ],
+    "l5_step_count": 3,
+    "l5_top1_test_name": "血镁 + 24h 尿钾",
+    "l6_has_disclaimer": true
+  }
+}

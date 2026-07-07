@@ -1,0 +1,30 @@
+# 疾病知识库配置
+
+# 数据来源
+sources:
+  orphanet:
+    name: Orphanet
+    description: 欧洲罕见病参考数据库，收录 ~7000 种罕见病
+    frequency_table: data/hpo_frequency/orphanet_freq.json
+    url: https://www.orpha.net
+
+  omim:
+    name: OMIM
+    description: 在线孟德尔人类遗传数据库，基因-表型关联
+    url: https://omim.org
+    access: academic_free
+
+  hpo:
+    name: Human Phenotype Ontology
+    description: 标准化人类表型术语体系
+    url: https://hpo.jax.org
+    annotation_file: data/hpo_frequency/phenotype_annotation.tab
+
+# 频率表字段说明
+# disease_id: Orphanet ID (如 ORPHA:520)
+# disease_name: 疾病名称
+# hpo_id: HPO 术语 ID (如 HP:0001250)
+# hpo_name: HPO 术语名称
+# frequency: 该症状在该疾病中的出现频率 (0.0-1.0)
+# frequency_qualifier: 定性描述 (如 "非常常见"、"偶见")
+# source: 数据来源 (Orphanet/OMIM)
