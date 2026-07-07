@@ -182,6 +182,12 @@ PHENOTYPE_DICTIONARY: list[dict[str, Any]] = [
     {"keywords":["体重下降","消瘦","体重减轻","weight loss"],"hpo_id":"HP:0004325","term_name":"体重下降","default_modifiers":{}},
     {"keywords":["易疲劳","倦怠","乏力","fatigue","精神萎靡"],"hpo_id":"HP:0012378","term_name":"易疲劳","default_modifiers":{}},
     {"keywords":["身材矮小","矮小","short stature","生长迟缓"],"hpo_id":"HP:0004322","term_name":"身材矮小","default_modifiers":{}},
+    # ── 新增：头面/五官/呼吸道（已用频率表验证 ID 真实）──
+    {"keywords":["头痛","头疼","偏头痛","migraine","headache","胀痛","搏动样痛"],"hpo_id":"HP:0002315","term_name":"头痛","default_modifiers":{}},
+    {"keywords":["鼻塞","鼻不通气","鼻腔阻塞","nasal obstruction","鼻堵"],"hpo_id":"HP:0000242","term_name":"鼻塞","default_modifiers":{}},
+    {"keywords":["鼻出血","鼻衄","鼻涕带血","鼻涕中带血","epistaxis","鼻血"],"hpo_id":"HP:0000233","term_name":"鼻出血","default_modifiers":{}},
+    {"keywords":["咳痰","咳痰增多","痰多","多痰","咳嗽咳痰","sputum"],"hpo_id":"HP:0002094","term_name":"咳痰","default_modifiers":{}},
+    {"keywords":["鼻充血","鼻黏膜充血","nasal congestion","鼻黏膜红"],"hpo_id":"HP:0000245","term_name":"鼻充血","default_modifiers":{}},
     {"keywords":["上呼吸道水肿"],"hpo_id":"HP:0000056","term_name":"上呼吸道水肿","default_modifiers":{}},
     {"keywords":["肠壁水肿"],"hpo_id":"HP:0000098","term_name":"肠壁水肿","default_modifiers":{}},
     {"keywords":["角膜混浊"],"hpo_id":"HP:0000123","term_name":"角膜混浊","default_modifiers":{}},
@@ -553,7 +559,8 @@ async def run_with_knows(
         else state.get("session_id", "")
     )
 
-    # ===== LLM 表型提取（主力路径，要求 ≥3 项）=====
+    # ===== LLM 表型提取（主力路径，要求 ≥5 项）=====
+    LLM_MIN_THRESHOLD = 5
     llm_used = False
     llm_below_threshold = False
     llm_err: str | None = None
@@ -565,22 +572,22 @@ async def run_with_knows(
             )
             llm_vectors = llm_profile.vectors
             llm_used = True
-            # 不达 3 项基线视为「LLM 不可靠」，词典兜底补齐
-            if len(llm_vectors) < 3:
+            # 不达 5 项基线视为「LLM 不可靠」，词典兜底打底
+            if len(llm_vectors) < LLM_MIN_THRESHOLD:
                 llm_below_threshold = True
         except Exception as e:
             llm_vectors = []
             llm_below_threshold = True
             llm_err = f"{type(e).__name__}: {e}"
 
-    # ===== 词典兜底路径（LLM 失败 / 少于 3 项时以此为底座补充）=====
+    # ===== 词典兜底路径（LLM 失败 / 少于 5 项时以此为底座）=====
     dict_vectors = extract_phenotypes(text)
     demographic = extract_demographic(text)
 
     # ===== 合并去重：置信度择优 =====
     # 策略：
-    # - 若 LLM ≥3 项：LLM 为底座，词典补充遗漏
-    # - 若 LLM <3 项或失败：词典为底座，LLM 补充（若有少量结果）
+    # - 若 LLM ≥5 项：LLM 为底座，词典补充遗漏
+    # - 若 LLM <5 项或失败：词典为底座，LLM 补充（若有少量结果）
     if llm_used and not llm_below_threshold:
         merged = list(llm_vectors)
         supplement = dict_vectors
