@@ -41,6 +41,7 @@ def run(state: dict | Any) -> dict:
             pedigree = pp.get("structured", {}).get("pedigree")
 
     meta_db = load_disease_meta()
+    # 兜底：LLM 假设的 disease_id 不在 meta_db 时，compute_genetic_constraint 应容错
     constraint = compute_genetic_constraint(pedigree, hypotheses, meta_db)
 
     # 回流判定：Top-1 假设被排除
@@ -89,7 +90,8 @@ async def run_with_knows(
     hypotheses = state.hypotheses if hasattr(state, "hypotheses") else state.get("hypotheses", [])
     for h in hypotheses[:3]:
         meta = meta_db.get(h.disease_id, {})
-        disease_name = meta.get("name", h.disease_id)
+        # 兜底：LLM 假设无 meta → 用 disease_name 作查询
+        disease_name = meta.get("name") or h.disease_name or h.disease_id
         query = f"{disease_name} inheritance pattern genetic counseling"
         try:
             evidences = await knows_client.search_single_source(
@@ -153,7 +155,7 @@ async def _explain_inheritance_with_llm(
 
     for h in hypotheses[:3]:
         meta = meta_db.get(h.disease_id, {})
-        mode = meta.get("inheritance_mode", "未知")
+        mode = meta.get("inheritance_mode") or meta.get("inheritance_modes") or "未知"
         parts.append(f"{h.disease_name}(期望遗传模式={mode}, 后验={h.bayesian_score:.2f})")
 
     input_text = " | ".join(parts) if parts else "遗传推理结果为空"

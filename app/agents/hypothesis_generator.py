@@ -69,9 +69,24 @@ async def run_with_knows(
 
     为每个 Top-5 假设检索 paper_en + paper_cn，附加证据 ID 和强度。
     若传入 llm_gateway，对 Top-3 生成 LLM 鉴别诊断解释（写入 reasoning_chain）。
+
+    兜底策略：
+    - 贝叶斯无命中（表型不在频率表）时，启用 LLM 直接生成候选疾病假设
     """
     result = run(state)
     hypotheses: list[DiseaseHypothesis] = result.get("hypotheses", [])
+
+    # ===== 兜底：贝叶斯无命中时，LLM 直接生成候选疾病假设 =====
+    bayesian_hit = bool(hypotheses)
+    if not bayesian_hit and llm_gateway is not None:
+        try:
+            llm_hypotheses = await _generate_hypotheses_with_llm(state, llm_gateway)
+            hypotheses = llm_hypotheses
+            result["hypotheses"] = hypotheses
+            result["llm_fallback_hypotheses"] = True
+        except Exception:
+            # LLM 兜底也失败 → 维持空假设
+            pass
 
     if not hypotheses:
         return result
@@ -126,7 +141,112 @@ async def run_with_knows(
             # LLM 失败不阻断推理
             result["llm_differential"] = False
 
+    # ===== 日志：假设生成统计 =====
+    import logging
+    _logger = logging.getLogger(__name__)
+    _logger.info("hypothesis_layer2_generation", extra={
+        "session_id": getattr(state, "session_id", "") if hasattr(state, "session_id") else state.get("session_id", ""),
+        "bayesian_hit": bayesian_hit,
+        "llm_fallback": not bayesian_hit,
+        "hypothesis_count": len(hypotheses),
+        "top1_disease": hypotheses[0].disease_name if hypotheses else None,
+    })
+
     return result
+
+
+# ========== LLM 假设生成兜底 ==========
+
+_HYPOTHESIS_GEN_PROMPT = """你是罕见病诊断专家。基于患者表型向量，直接生成 Top-5 候选疾病假设。
+
+## 输出要求
+输出 JSON 对象：{"hypotheses": [{"disease_id": "...", "disease_name": "...", "supporting_phenotypes": [...], "reasoning": "..."}]}
+- disease_id: 用 ORPHA:xxx 或 OMIM:xxxxxx 格式；不确定时用 ORPHA:UNKNOWN
+- disease_name: 中文疾病名
+- supporting_phenotypes: 支持该诊断的表型术语名列表
+- reasoning: 1-2句说明为何该病与表型匹配
+
+## 规则
+1. 必须返回 3-5 个候选疾病，按可能性降序
+2. 优先选择能解释多个表型的系统性疾病
+3. 不要确诊语气，保留不确定性
+4. 输出纯 JSON，不要解释文字
+
+## 示例
+输入: 表型=[头痛, 鼻窦炎, 鼻出血, 咯血, 咳痰增多, 体重减轻]
+输出: {"hypotheses": [
+  {"disease_id": "ORPHA:439", "disease_name": "肉芽肿性多血管炎", "supporting_phenotypes": ["鼻窦炎","鼻出血","咯血"], "reasoning": "上下呼吸道受累+头痛+消瘦高度契合GPA"},
+  {"disease_id": "ORPHA:502", "disease_name": "鼻硬结病", "supporting_phenotypes": ["鼻窦炎","鼻充血","鼻出血"], "reasoning": "慢性鼻部肉芽肿性病变"}
+]}
+"""
+
+
+async def _generate_hypotheses_with_llm(
+    state: dict | Any,
+    llm_gateway: LLMGateway,
+) -> list[DiseaseHypothesis]:
+    """LLM 直接基于表型生成候选疾病假设（贝叶斯无命中时兜底）。
+
+    Raises:
+        RuntimeError: LLM 调用失败
+        ValueError: 输出无法解析
+    """
+    profile = (
+        state.phenotype_profile
+        if hasattr(state, "phenotype_profile")
+        else state.get("phenotype_profile")
+    )
+    if not profile or not profile.vectors:
+        return []
+
+    # 表型摘要喂给 LLM
+    pheno_summary = "、".join(
+        f"{v.term_name}({v.hpo_id})" for v in profile.vectors[:8]
+    ) or "未提供表型"
+
+    messages = [
+        {"role": "system", "content": _HYPOTHESIS_GEN_PROMPT},
+        {"role": "user", "content": f"## 患者表型\n{pheno_summary}\n\n请生成 Top-5 候选疾病假设。"},
+    ]
+
+    result = await llm_gateway.chat_json("hypothesis_generator", messages, temperature=0.2)
+
+    # 兼容多种返回形态
+    items: list[dict] = []
+    if isinstance(result, dict):
+        for key in ("hypotheses", "data", "result", "items"):
+            val = result.get(key)
+            if isinstance(val, list):
+                items = val
+                break
+        else:
+            if any(k in result for k in ("disease_id", "disease_name", "supporting_phenotypes")):
+                items = [result]
+    elif isinstance(result, list):
+        items = result
+
+    hypotheses: list[DiseaseHypothesis] = []
+    for rank, item in enumerate(items[:5], start=1):
+        if not isinstance(item, dict):
+            continue
+        did = item.get("disease_id", "") or "ORPHA:UNKNOWN"
+        dname = item.get("disease_name", "") or did
+        supp = item.get("supporting_phenotypes", []) or []
+        reasoning = item.get("reasoning", "") or ""
+
+        hypotheses.append(DiseaseHypothesis(
+            disease_id=did,
+            disease_name=dname,
+            bayesian_score=0.0,  # LLM 兜底无贝叶斯分
+            supporting_phenotypes=supp,
+            contradicting_phenotypes=[],
+            rank=rank,
+            evidence_ids=[],
+            confidence=0.5 - rank * 0.08,  # 衰减置信度
+            reasoning_chain=f"LLM兜底生成 | {reasoning}",
+        ))
+
+    return hypotheses
 
 
 # ========== LLM 鉴别诊断生成 ==========

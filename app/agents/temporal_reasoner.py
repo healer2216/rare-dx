@@ -21,7 +21,11 @@ _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 def run(state: dict | Any) -> dict:
-    """Layer 3 入口：对每个候选假设计算时序匹配度。"""
+    """Layer 3 入口：对每个候选假设计算时序匹配度。
+
+    兼容 LLM 兜底假设：若 disease_meta 无该疾病，跳过时序计分但仍返回占位结果，
+    避免下游级联空。
+    """
     if hasattr(state, "hypotheses"):
         hypotheses = state.hypotheses
         profile = state.phenotype_profile
@@ -37,6 +41,15 @@ def run(state: dict | Any) -> dict:
     for h in hypotheses[:5]:  # 仅 Top-5 计算时序（性能）
         meta = meta_db.get(h.disease_id, {})
         if not meta:
+            # LLM 兜底生成的假设无元数据 → 占位结果，不级联空
+            matches.append(TemporalMatch(
+                disease_id=h.disease_id,
+                onset_consistency=0.0,
+                progression_consistency=0.0,
+                sequence_consistency=0.0,
+                overall_temporal_score=0.0,
+                notes=f"LLM兜底假设，无时序元数据，跳过时序计分",
+            ))
             continue
         tm = compute_temporal_match(h.disease_id, h.disease_name, profile, meta)
         matches.append(tm)
@@ -45,7 +58,10 @@ def run(state: dict | Any) -> dict:
 
 
 async def run_with_knows(state: dict | Any, knows_client: KnowsClient) -> dict:
-    """Layer 3 异步版：时序匹配 + KnowS 检索自然史文献。"""
+    """Layer 3 异步版：时序匹配 + KnowS 检索自然史文献。
+
+    兼容 LLM 兜底假设：占位结果也尝试检索证据。
+    """
     result = run(state)
     matches: list[TemporalMatch] = result.get("temporal_matches", [])
 
@@ -55,11 +71,10 @@ async def run_with_knows(state: dict | Any, knows_client: KnowsClient) -> dict:
     all_evidence_ids: list[str] = []
     all_evidences: list = []
 
+    meta_db = load_disease_meta()
     for tm in matches[:3]:  # Top-3 检索
-        # 用疾病 ID 查询疾病名
-        meta_db = load_disease_meta()
         meta = meta_db.get(tm.disease_id, {})
-        disease_name = meta.get("name", tm.disease_id)
+        disease_name = meta.get("name") or tm.disease_id
         query = f"{disease_name} natural history onset progression"
         try:
             evidences = await knows_client.search(

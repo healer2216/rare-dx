@@ -121,6 +121,10 @@ def run(state: dict | Any) -> dict:
         if "*" in targets or (set(targets) & top_disease_ids):
             candidate_tests.append(t)
 
+    # 兜底：LLM 假设全不在 TEST_CATALOG → 至少保留通用检查（WES/影像）
+    if not candidate_tests:
+        candidate_tests = [t for t in TEST_CATALOG if "*" in t.get("target_diseases", [])]
+
     # 计算 EVOI 并排序
     scored: list[tuple[dict, dict]] = []
     n_hypotheses = min(len(hypotheses), 5)
