@@ -42,7 +42,7 @@ export function listenSSE(
   source.addEventListener('report_delta', (e) => parseAndFire(e, 'report_delta'))
   source.addEventListener('evidence', (e) => parseAndFire(e, 'evidence'))
   source.addEventListener('safety_valve', (e) => parseAndFire(e, 'safety_valve'))
-  source.addEventListener('error', (e) => { parseAndFire(e, 'error'); source.close() })
+  source.addEventListener('error', (e: MessageEvent) => { parseAndFire(e, 'error'); source.close() })
 
   source.onerror = (err) => {
     console.error('SSE 连接错误:', err)
