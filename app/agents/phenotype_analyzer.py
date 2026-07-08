@@ -32,18 +32,90 @@ from ..tools.llm_gateway import LLMGateway
 # ========== 表型关键词词典 ==========
 # 从 data/hpo_dictionary.json 全量加载（11,586+ HPO，1.6 MB）
 _DICT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "hpo_dictionary.json")
+_LEARNED_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "hpo_learned_keywords.json")
 
 def _load_phenotype_dictionary() -> list[dict[str, Any]]:
+    loaded = []
     if os.path.exists(_DICT_PATH):
         try:
             with open(_DICT_PATH, encoding="utf-8") as f:
-                return json.load(f)
+                loaded = json.load(f)
         except Exception:
             pass
-    return []
+    
+    # 合并 LLM 学到的关键词缓存
+    if os.path.exists(_LEARNED_PATH):
+        try:
+            with open(_LEARNED_PATH, encoding="utf-8") as f:
+                learned = json.load(f)
+            existing_ids = {e['hpo_id'] for e in loaded}
+            for entry in learned:
+                if entry['hpo_id'] not in existing_ids:
+                    loaded.append(entry)
+                    existing_ids.add(entry['hpo_id'])
+                else:
+                    # 已有条目补充新关键词，并更新 term_name（若原为 HPO ID）
+                    for e in loaded:
+                        if e['hpo_id'] == entry['hpo_id']:
+                            for kw in entry.get('keywords', []):
+                                if kw not in e.get('keywords', []):
+                                    e.setdefault('keywords', []).append(kw)
+                            # 学习缓存中的 term_name 是 LLM 返回的中文名
+                            # 若当前 term_name 仅是 HPO ID，更新为中文名
+                            if e.get('term_name', '').startswith('HP:'):
+                                e['term_name'] = entry.get('term_name', e['term_name'])
+                            break
+        except Exception:
+            pass
+    
+    return loaded
 
 PHENOTYPE_DICTIONARY: list[dict[str, Any]] = _load_phenotype_dictionary()
-print(f"[rare-dx] 全量表型词典加载完成: {len(PHENOTYPE_DICTIONARY)} 个 HPO", flush=True)
+print(f"[rare-dx] 全量表型词典加载完成: {len(PHENOTYPE_DICTIONARY)} 个 HPO（含学习缓存）", flush=True)
+
+def _save_learned_keywords(term_name: str, hpo_id: str) -> None:
+    """将 LLM 提取到的 term_name -> hpo_id 映射保存到学习缓存，供下次词典匹配。"""
+    if not term_name or not hpo_id or hpo_id.startswith("LLM:"):
+        return
+    # 已存在于词典中的不重复保存
+    for e in PHENOTYPE_DICTIONARY:
+        if e['hpo_id'] == hpo_id:
+            if term_name in e.get('keywords', []):
+                return
+            e.setdefault('keywords', []).append(term_name)
+            # 若当前 term_name 仅是 HPO ID，用 LLM 返回的中文名替代
+            if e.get('term_name', '').startswith('HP:'):
+                e['term_name'] = term_name
+            break
+    else:
+        # 全新的 HPO 条目
+        PHENOTYPE_DICTIONARY.append({
+            'hpo_id': hpo_id,
+            'term_name': term_name,
+            'keywords': [term_name],
+            'default_modifiers': {},
+        })
+    
+    # 写入持久化文件
+    try:
+        existing = {}
+        if os.path.exists(_LEARNED_PATH):
+            with open(_LEARNED_PATH, encoding="utf-8") as f:
+                existing = {e['hpo_id']: e for e in json.load(f)}
+        if hpo_id in existing:
+            if term_name not in existing[hpo_id].get('keywords', []):
+                existing[hpo_id]['keywords'].append(term_name)
+        else:
+            existing[hpo_id] = {
+                'hpo_id': hpo_id,
+                'term_name': term_name,
+                'keywords': [term_name],
+                'default_modifiers': {},
+            }
+        with open(_LEARNED_PATH, 'w', encoding="utf-8") as f:
+            json.dump(list(existing.values()), f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
 
 # 为常见临床表述提供更多同义词/别名/拼音/缩写映射
@@ -360,6 +432,9 @@ async def run_with_knows(
             )
             llm_vectors = llm_profile.vectors
             llm_used = True
+            # LLM 提取成功后，将 term_name → hpo_id 存入学习缓存
+            for v in llm_vectors:
+                _save_learned_keywords(v.term_name, v.hpo_id)
             # 不达 5 项基线视为「LLM 不可靠」，词典兜底打底
             if len(llm_vectors) < LLM_MIN_THRESHOLD:
                 llm_below_threshold = True

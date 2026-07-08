@@ -1,0 +1,18 @@
+[
+  {
+    "hpo_id": "HP:0001638",
+    "term_name": "心力衰竭",
+    "keywords": [
+      "心力衰竭"
+    ],
+    "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0001265",
+    "term_name": "构音障碍",
+    "keywords": [
+      "构音障碍"
+    ],
+    "default_modifiers": {}
+  }
+]
