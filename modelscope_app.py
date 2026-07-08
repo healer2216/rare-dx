@@ -20,12 +20,36 @@ FRONTEND_DIR = os.path.join(BACKEND_DIR, "frontend")
 processes = []
 
 
+def wait_for_backend(port, timeout=120):
+    """等待后端服务就绪（轮询 HTTP）。"""
+    import urllib.request
+    import urllib.error
+
+    url = f"http://127.0.0.1:{port}/api/health"
+    deadline = time.time() + timeout
+    print(f"[app.py] 等待后端就绪 (端口 {port})...", flush=True)
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as resp:
+                if resp.status == 200:
+                    print(f"[app.py] 后端已就绪 (HTTP {resp.status})", flush=True)
+                    return True
+        except urllib.error.URLError:
+            pass
+        except Exception:
+            pass
+        time.sleep(2)
+    print(f"[app.py] 后端等待超时 ({timeout}s)，继续启动代理", flush=True)
+    return False
+
+
 def start_backend():
-    """启动 FastAPI 后端。"""
+    """启动 FastAPI 后端（保留输出以便排查启动失败原因）。"""
     print("[app.py] 启动后端 (uvicorn)...", flush=True)
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app.main:app",
-         "--host", "0.0.0.0", "--port", str(BACKEND_PORT)],
+         "--host", "0.0.0.0", "--port", str(BACKEND_PORT),
+         "--log-level", "debug"],
         cwd=BACKEND_DIR,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -166,9 +190,9 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    # 启动后端
+    # 启动后端并等待就绪
     backend = start_backend()
-    time.sleep(3)
+    wait_for_backend(BACKEND_PORT, timeout=120)
 
     # 启动前端（若不可用则仅保留下游 API 服务）
     frontend = start_frontend()
