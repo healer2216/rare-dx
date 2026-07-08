@@ -29,3 +29,9 @@ checkpoints.db
 # Rare-dx runtime
 raredx.db
 app/audit/
+
+# AtomCode local config (含权限/hooks 策略，不推远端)
+.atomcode/settings.json
+.mcp.json
+# AtomCode skills 可推（团队共享审查约定）
+!.atomcode/skills/
