@@ -160,49 +160,117 @@ class LLMGateway:
 def _extract_json(text: str) -> dict | list:
     """从 LLM 响应中提取 JSON。
 
-    兼容三种情况：
+    兼容多种情况：
     - 纯 JSON
     - ```json ... ``` 代码块包裹
     - 混杂解释文字（取第一个 { 到最后一个 }）
+    - 损坏/未闭合 JSON（尝试修复）
     """
     text = text.strip()
+    if not text:
+        return {}
+
     # 去除 markdown 代码块
     if text.startswith("```"):
         lines = text.split("\n")
-        # 去掉首尾 ``` 行
         lines = [l for l in lines if not l.strip().startswith("```")]
         text = "\n".join(lines).strip()
-    # 直接尝试解析
+
     import json
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    # 提取第一个 { 到最后一个 }
-    start = text.find("{")
-    end = text.rfind("}")
-    if start >= 0 and end > start:
-        candidate = text[start : end + 1]
+    import re
+
+    def _try_parse(s: str):
         try:
-            return json.loads(candidate)
+            return json.loads(s)
         except json.JSONDecodeError:
-            pass
-        # 容错：flash 小模型可能损坏 JSON key（如 "impression":"..." → ": ":"..."）
-        # 尝试修复损坏的 key（key 为空串或含非字母数字的损坏模式）
-        import re
-        # 把 ": ": 或 ": ":"  这种损坏 key（冒号前后无有效键名）替换为 _key 占位
-        fixed = re.sub(r'":\s*":', '"_key":', candidate)
-        if fixed != candidate:
-            try:
-                return json.loads(fixed)
-            except json.JSONDecodeError:
-                pass
-    # 提取数组
-    start = text.find("[")
-    end = text.rfind("]")
-    if start >= 0 and end > start:
-        try:
-            return json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            pass
+            return None
+
+    # 1. 直接尝试解析
+    parsed = _try_parse(text)
+    if isinstance(parsed, (dict, list)):
+        return parsed
+
+    # 2. 根据文本开头优先提取对象或数组
+    def _extract_from_text(t: str):
+        if t.startswith("["):
+            # 优先尝试数组
+            start = t.find("[")
+            end = t.rfind("]")
+            if start >= 0:
+                if end > start:
+                    candidate = t[start : end + 1]
+                else:
+                    candidate = t[start:]
+                parsed = _try_parse(candidate)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+                fixed = _repair_json(candidate)
+                if fixed != candidate:
+                    parsed = _try_parse(fixed)
+                    if isinstance(parsed, (dict, list)):
+                        return parsed
+
+        # 尝试对象
+        start = t.find("{")
+        end = t.rfind("}")
+        if start >= 0:
+            if end > start:
+                candidate = t[start : end + 1]
+            else:
+                candidate = t[start:]
+            parsed = _try_parse(candidate)
+            if isinstance(parsed, (dict, list)):
+                return parsed
+            fixed = re.sub(r'":\s*":', '"_key":', candidate)
+            if fixed != candidate:
+                parsed = _try_parse(fixed)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+            fixed = _repair_json(candidate)
+            if fixed != candidate:
+                parsed = _try_parse(fixed)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+
+        # 如果前面没返回，再尝试数组（作为 fallback）
+        if not t.startswith("["):
+            start = t.find("[")
+            end = t.rfind("]")
+            if start >= 0:
+                if end > start:
+                    candidate = t[start : end + 1]
+                else:
+                    candidate = t[start:]
+                parsed = _try_parse(candidate)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+                fixed = _repair_json(candidate)
+                if fixed != candidate:
+                    parsed = _try_parse(fixed)
+                    if isinstance(parsed, (dict, list)):
+                        return parsed
+
+        return None
+
+    result = _extract_from_text(text)
+    if result is not None:
+        return result
+
     raise ValueError(f"无法从 LLM 响应中提取 JSON: {text[:200]}")
+
+
+def _repair_json(s: str) -> str:
+    """尝试修复常见 JSON 格式问题。"""
+    import re
+    # 修复尾部多余的逗号（对象或数组）
+    s = re.sub(r",\s*([}\]])", r"\1", s)
+    # 修复未转义的控制字符（保留换行和制表符，移除其他控制字符）
+    s = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", s)
+    # 如果缺少闭合括号，尝试补全
+    open_braces = s.count("{") - s.count("}")
+    open_brackets = s.count("[") - s.count("]")
+    if open_braces > 0:
+        s += "}" * open_braces
+    if open_brackets > 0:
+        s += "]" * open_brackets
+    return s
