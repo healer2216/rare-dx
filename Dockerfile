@@ -2,35 +2,31 @@ FROM python:3.12-slim
 
 WORKDIR /home/user/app
 
-# 安装系统依赖（含 Node.js 18+）
+# 安装系统依赖（Node.js 用预编译二进制，避免 apt 安装 OOM）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制 Python 依赖文件并安装
+# 下载预编译 Node.js 18（轻量，避免 NodeSource 脚本 OOM）
+RUN curl -fsSL https://nodejs.org/dist/v18.20.0/node-v18.20.0-linux-x64.tar.xz \
+    | tar -xJ -C /usr/local --strip-components=1 \
+    && node --version && npm --version
+
+# 复制依赖文件并安装 Python 依赖
 COPY pyproject.toml README.md ./
 COPY app/ ./app/
 COPY config/ ./config/
 COPY data/ ./data/
-
-# 安装 Python 依赖
 RUN pip install --no-cache-dir -e ".[dev]"
 
-# 复制前端依赖文件并安装（不构建，运行时 dev 模式启动）
+# 复制前端并安装依赖（不构建，运行时启动）
 COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm install
-
-# 复制前端源码
 COPY frontend/ ./frontend/
 
 # 复制入口文件
 COPY modelscope_app.py ./
 
-# 暴露端口（创空间固定）
 EXPOSE 7860
-
-# 启动
 ENTRYPOINT ["python", "-u", "modelscope_app.py"]
