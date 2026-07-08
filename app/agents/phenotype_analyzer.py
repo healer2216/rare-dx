@@ -1,7 +1,8 @@
 """Layer 1 · 表型深度分析 Agent。
 
-从临床文本提取 HPO 表型向量 + 修饰符。演示版使用关键词词典映射，
-覆盖 D1/D2/D3 演示剧本的核心表型。后续可替换为 LLM NER。
+从临床文本提取 HPO 表型向量 + 修饰符。
+词典从 data/hpo_dictionary.json 全量加载（11,586+ HPO），
+覆盖频率表中所有 HPO 术语。
 
 KnowS 集成（按 PRD §4.2 Layer 1 策略）：
 - 检索源：guide
@@ -12,6 +13,8 @@ KnowS 集成（按 PRD §4.2 Layer 1 策略）：
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import re
 from typing import Any
 
@@ -27,237 +30,22 @@ from ..tools.llm_gateway import LLMGateway
 
 
 # ========== 表型关键词词典 ==========
-# (关键词列表, hpo_id, term_name, 默认修饰符)
-PHENOTYPE_DICTIONARY: list[dict[str, Any]] = [
-    {
-        "keywords": ["肌张力低下", "肌张力减低", "肌张力降低", "hypotonia", "肌力低下"],
-        "hpo_id": "HP:0001290",
-        "term_name": "肌张力低下",
-        "default_modifiers": {"distribution": "generalized", "temporal_pattern": "progressive"},
-    },
-    {
-        "keywords": ["喂养困难", "吸吮无力", "鼻饲", "feeding difficulty", "经口喂养"],
-        "hpo_id": "HP:0002033",
-        "term_name": "喂养困难",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["乳酸性酸中毒", "血乳酸升高", "高乳酸", "lactic acidosis", "乳酸升高"],
-        "hpo_id": "HP:0002154",
-        "term_name": "乳酸性酸中毒",
-        "default_modifiers": {"temporal_pattern": "persistent"},
-    },
-    {
-        "keywords": ["基底节", "基底核", "壳核", "苍白球", "basal ganglia", "T2高信号"],
-        "hpo_id": "HP:0002011",
-        "term_name": "基底节区MRI异常信号",
-        "default_modifiers": {"laterality": "bilateral"},
-    },
-    {
-        "keywords": ["眼球震颤", "nystagmus", "眼球运动异常", "眼球运动受限"],
-        "hpo_id": "HP:0001332",
-        "term_name": "眼球运动异常",
-        "default_modifiers": {"laterality": "bilateral"},
-    },
-    {
-        "keywords": ["癫痫", "抽搐", "惊厥", "seizure", "癫痫发作"],
-        "hpo_id": "HP:0001250",
-        "term_name": "癫痫发作",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["发育倒退", "认知倒退", "学习退步", "developmental regression", "行为异常"],
-        "hpo_id": "HP:0001268",
-        "term_name": "发育倒退",
-        "default_modifiers": {"temporal_pattern": "progressive"},
-    },
-    {
-        "keywords": ["皮肤色素沉着", "色素沉着", "色素减退", "hyperpigmentation", "皮肤色素"],
-        "hpo_id": "HP:0001010",
-        "term_name": "皮肤色素沉着",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["VLCFA", "极长链脂肪酸", "极长链脂肪酸升高"],
-        "hpo_id": "HP:0002315",
-        "term_name": "VLCFA升高",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["脑白质", "白质异常信号", "白质病变", "white matter", "脱髓鞘"],
-        "hpo_id": "HP:0002500",
-        "term_name": "脑白质MRI异常",
-        "default_modifiers": {"laterality": "bilateral"},
-    },
-    {
-        "keywords": ["痉挛性截瘫", "截瘫", "spastic paraplegia", "肌张力增高", "腱反射亢进"],
-        "hpo_id": "HP:0001257",
-        "term_name": "痉挛性截瘫",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["低钾", "血钾低", "低钾血症", "hypokalemia", "血钾1.8", "血钾2.1"],
-        "hpo_id": "HP:0002900",
-        "term_name": "低钾血症",
-        "default_modifiers": {"temporal_pattern": "relapsing"},
-    },
-    {
-        "keywords": ["低镁", "血镁低", "低镁血症", "hypomagnesemia"],
-        "hpo_id": "HP:0002908",
-        "term_name": "低镁血症",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["代谢性碱中毒", "碱中毒", "metabolic alkalosis", "HCO3"],
-        "hpo_id": "HP:0003557",
-        "term_name": "代谢性碱中毒",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["尿钾升高", "尿钾排泄", "尿钾45", "尿钾增高"],
-        "hpo_id": "HP:0003118",
-        "term_name": "尿钾升高",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["肾素", "醛固酮", "肾素活性升高", "醛固酮升高", "肾素-醛固酮"],
-        "hpo_id": "HP:0000863",
-        "term_name": "肾素-醛固酮系统激活",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["视网膜变性", "视力下降", "视网膜", "retinal degeneration"],
-        "hpo_id": "HP:0000556",
-        "term_name": "视网膜变性",
-        "default_modifiers": {},
-    },
-    {
-        "keywords": ["肌无力", "四肢无力", "无力", "weakness", "肌力3级"],
-        "hpo_id": "HP:0001324",
-        "term_name": "肌无力",
-        "default_modifiers": {"distribution": "proximal"},
-    },
-    # ── 新增：代谢 ──
-    {"keywords":["高血糖","血糖升高","糖尿病","hyperglycemia"],"hpo_id":"HP:0003074","term_name":"高血糖","default_modifiers":{}},
-    {"keywords":["低血糖","血糖低","hypoglycemia","低血糖症"],"hpo_id":"HP:0001943","term_name":"低血糖","default_modifiers":{}},
-    {"keywords":["酮症","酮体升高","ketoacidosis","酮尿"],"hpo_id":"HP:0012135","term_name":"酮症","default_modifiers":{}},
-    {"keywords":["高血氨","血氨升高","ammonia","高氨血症"],"hpo_id":"HP:0003073","term_name":"高血氨","default_modifiers":{}},
-    {"keywords":["肝大","肝肿大","hepatomegaly","肝脾肿大"],"hpo_id":"HP:0002240","term_name":"肝大","default_modifiers":{}},
-    # ── 新增：神经 ──
-    {"keywords":["共济失调","走路不稳","宽基步态","ataxia","步态不稳"],"hpo_id":"HP:0001251","term_name":"共济失调","default_modifiers":{}},
-    {"keywords":["发育迟缓","运动发育迟缓","motor delay","发育落后"],"hpo_id":"HP:0001270","term_name":"运动发育迟缓","default_modifiers":{}},
-    {"keywords":["语言发育迟缓","言语障碍","speech delay"],"hpo_id":"HP:0001263","term_name":"语言发育迟缓","default_modifiers":{}},
-    {"keywords":["小头畸形","microcephaly","头围小"],"hpo_id":"HP:0000252","term_name":"小头畸形","default_modifiers":{}},
-    {"keywords":["自闭症","孤独症","autism","社交障碍","刻板行为"],"hpo_id":"HP:0000729","term_name":"自闭症样行为","default_modifiers":{}},
-    {"keywords":["听力下降","耳聋","hearing loss","感音神经性耳聋"],"hpo_id":"HP:0000365","term_name":"听力障碍","default_modifiers":{}},
-    # ── 新增：心血管/呼吸 ──
-    {"keywords":["心脏杂音","murmur","心前区杂音"],"hpo_id":"HP:0030148","term_name":"心脏杂音","default_modifiers":{}},
-    {"keywords":["发绀","紫绀","cyanosis","口唇发紫"],"hpo_id":"HP:0000961","term_name":"发绀","default_modifiers":{}},
-    {"keywords":["呼吸困难","气促","呼吸急促","dyspnea","tachypnea"],"hpo_id":"HP:0002098","term_name":"呼吸急促","default_modifiers":{}},
-    {"keywords":["咳嗽","cough","阵发性咳嗽"],"hpo_id":"HP:0012735","term_name":"咳嗽","default_modifiers":{}},
-    {"keywords":["发热","fever","高热","发烧"],"hpo_id":"HP:0001945","term_name":"发热","default_modifiers":{}},
-    # ── 新增：消化道 ──
-    {"keywords":["呕吐","vomiting","恶心","喷射性呕吐"],"hpo_id":"HP:0002013","term_name":"呕吐","default_modifiers":{}},
-    {"keywords":["腹泻","diarrhea","水样便","稀便"],"hpo_id":"HP:0002014","term_name":"腹泻","default_modifiers":{}},
-    {"keywords":["便秘","constipation","排便困难"],"hpo_id":"HP:0002019","term_name":"便秘","default_modifiers":{}},
-    {"keywords":["腹痛","abdominal pain","肚子痛"],"hpo_id":"HP:0002027","term_name":"腹痛","default_modifiers":{}},
-    # ── 新增：肾脏/电解质 ──
-    {"keywords":["多尿","polyuria","尿频","尿量增多"],"hpo_id":"HP:0000103","term_name":"多尿","default_modifiers":{}},
-    {"keywords":["多饮","polydipsia","烦渴","口渴多饮"],"hpo_id":"HP:0001959","term_name":"多饮","default_modifiers":{}},
-    {"keywords":["蛋白尿","proteinuria","尿蛋白"],"hpo_id":"HP:0000093","term_name":"蛋白尿","default_modifiers":{}},
-    {"keywords":["低钠","低钠血症","低血钠","hyponatremia"],"hpo_id":"HP:0002902","term_name":"低钠血症","default_modifiers":{}},
-    # ── 新增：皮肤/眼 ──
-    {"keywords":["皮疹","rash","红斑","多形红斑","斑丘疹"],"hpo_id":"HP:0000988","term_name":"皮疹","default_modifiers":{}},
-    {"keywords":["白内障","cataract","晶体混浊"],"hpo_id":"HP:0000518","term_name":"白内障","default_modifiers":{}},
-    {"keywords":["视神经萎缩","optic atrophy","视盘苍白"],"hpo_id":"HP:0000648","term_name":"视神经萎缩","default_modifiers":{}},
-    {"keywords":["眼睑下垂","ptosis","上睑下垂"],"hpo_id":"HP:0000508","term_name":"眼睑下垂","default_modifiers":{}},
-    # ── 新增：全身症状 ──
-    {"keywords":["贫血","anemia","血红蛋白低"],"hpo_id":"HP:0001903","term_name":"贫血","default_modifiers":{}},
-    {"keywords":["黄疸","jaundice","皮肤黄染","巩膜黄染"],"hpo_id":"HP:0000952","term_name":"黄疸","default_modifiers":{}},
-    {"keywords":["低血压","hypotension","血压低","血压90/60"],"hpo_id":"HP:0002615","term_name":"低血压","default_modifiers":{}},
-    {"keywords":["脾大","巨脾","splenomegaly","脾脏增大"],"hpo_id":"HP:0001744","term_name":"脾大","default_modifiers":{}},
-    {"keywords":["肌酸激酶升高","CK升高","creatine kinase","肌酶升高"],"hpo_id":"HP:0003236","term_name":"肌酸激酶升高","default_modifiers":{}},
-    {"keywords":["肝酶升高","转氨酶升高","ALT升高","AST升高"],"hpo_id":"HP:0002910","term_name":"肝酶升高","default_modifiers":{}},
-    {"keywords":["嗜睡","昏睡","意识障碍","lethargy","昏迷"],"hpo_id":"HP:0004372","term_name":"意识障碍","default_modifiers":{}},
-    {"keywords":["体重下降","消瘦","体重减轻","weight loss"],"hpo_id":"HP:0004325","term_name":"体重下降","default_modifiers":{}},
-    {"keywords":["易疲劳","倦怠","乏力","fatigue","精神萎靡"],"hpo_id":"HP:0012378","term_name":"易疲劳","default_modifiers":{}},
-    {"keywords":["身材矮小","矮小","short stature","生长迟缓"],"hpo_id":"HP:0004322","term_name":"身材矮小","default_modifiers":{}},
-    # ── 新增：头面/五官/呼吸道（已用频率表验证 ID 真实）──
-    {"keywords":["头痛","头疼","偏头痛","migraine","headache","胀痛","搏动样痛"],"hpo_id":"HP:0002315","term_name":"头痛","default_modifiers":{}},
-    {"keywords":["鼻塞","鼻不通气","鼻腔阻塞","nasal obstruction","鼻堵"],"hpo_id":"HP:0000242","term_name":"鼻塞","default_modifiers":{}},
-    {"keywords":["鼻出血","鼻衄","鼻涕带血","鼻涕中带血","epistaxis","鼻血"],"hpo_id":"HP:0000233","term_name":"鼻出血","default_modifiers":{}},
-    {"keywords":["咳痰","咳痰增多","痰多","多痰","咳嗽咳痰","sputum"],"hpo_id":"HP:0002094","term_name":"咳痰","default_modifiers":{}},
-    {"keywords":["鼻充血","鼻黏膜充血","nasal congestion","鼻黏膜红"],"hpo_id":"HP:0000245","term_name":"鼻充血","default_modifiers":{}},
-    {"keywords":["上呼吸道水肿"],"hpo_id":"HP:0000056","term_name":"上呼吸道水肿","default_modifiers":{}},
-    {"keywords":["肠壁水肿"],"hpo_id":"HP:0000098","term_name":"肠壁水肿","default_modifiers":{}},
-    {"keywords":["角膜混浊"],"hpo_id":"HP:0000123","term_name":"角膜混浊","default_modifiers":{}},
-    {"keywords":["皮下水肿"],"hpo_id":"HP:0000137","term_name":"皮下水肿","default_modifiers":{}},
-    {"keywords":["面部畸形"],"hpo_id":"HP:0000238","term_name":"面部畸形","default_modifiers":{}},
-    {"keywords":["耳聋"],"hpo_id":"HP:0000380","term_name":"耳聋","default_modifiers":{}},
-    {"keywords":["视网膜变性", "retinal degeneration"],"hpo_id":"HP:0000556","term_name":"视网膜变性","default_modifiers":{}},
-    {"keywords":["视神经萎缩"],"hpo_id":"HP:0000639","term_name":"视神经萎缩","default_modifiers":{}},
-    {"keywords":["眼睑下垂"],"hpo_id":"HP:0000646","term_name":"眼睑下垂","default_modifiers":{}},
-    {"keywords":["自闭症行为"],"hpo_id":"HP:0000717","term_name":"自闭症行为","default_modifiers":{}},
-    {"keywords":["低血压", "hypertension"],"hpo_id":"HP:0000822","term_name":"低血压","default_modifiers":{}},
-    {"keywords":["肾上腺功能不全"],"hpo_id":"HP:0000836","term_name":"肾上腺功能不全","default_modifiers":{}},
-    {"keywords":["肾素-醛固酮系统激活"],"hpo_id":"HP:0000863","term_name":"肾素-醛固酮系统激活","default_modifiers":{}},
-    {"keywords":["垂体腺瘤"],"hpo_id":"HP:0000951","term_name":"垂体腺瘤","default_modifiers":{}},
-    {"keywords":["皮肤色素沉着"],"hpo_id":"HP:0000953","term_name":"皮肤色素沉着","default_modifiers":{}},
-    {"keywords":["甲状旁腺功能亢进"],"hpo_id":"HP:0000957","term_name":"甲状旁腺功能亢进","default_modifiers":{}},
-    {"keywords":["咳嗽"],"hpo_id":"HP:0000960","term_name":"咳嗽","default_modifiers":{}},
-    {"keywords":["胰腺神经内分泌肿瘤"],"hpo_id":"HP:0000967","term_name":"胰腺神经内分泌肿瘤","default_modifiers":{}},
-    {"keywords":["皮肤色素沉着"],"hpo_id":"HP:0001010","term_name":"皮肤色素沉着","default_modifiers":{}},
-    {"keywords":["惊厥"],"hpo_id":"HP:0001250","term_name":"惊厥","default_modifiers":{}},
-    {"keywords":["颅骨增厚"],"hpo_id":"HP:0001256","term_name":"颅骨增厚","default_modifiers":{}},
-    {"keywords":["痉挛性截瘫", "spastic paraplegia"],"hpo_id":"HP:0001257","term_name":"痉挛性截瘫","default_modifiers":{}},
-    {"keywords":["痴呆"],"hpo_id":"HP:0001260","term_name":"痴呆","default_modifiers":{}},
-    {"keywords":["发育倒退"],"hpo_id":"HP:0001268","term_name":"发育倒退","default_modifiers":{}},
-    {"keywords":["新生儿低血糖"],"hpo_id":"HP:0001272","term_name":"新生儿低血糖","default_modifiers":{}},
-    {"keywords":["肌张力增高"],"hpo_id":"HP:0001276","term_name":"肌张力增高","default_modifiers":{}},
-    {"keywords":["心肺功能不全"],"hpo_id":"HP:0001283","term_name":"心肺功能不全","default_modifiers":{}},
-    {"keywords":["肌张力低下"],"hpo_id":"HP:0001290","term_name":"肌张力低下","default_modifiers":{}},
-    {"keywords":["刻板行为"],"hpo_id":"HP:0001298","term_name":"刻板行为","default_modifiers":{}},
-    {"keywords":["肌无力", "muscle weakness"],"hpo_id":"HP:0001324","term_name":"肌无力","default_modifiers":{}},
-    {"keywords":["眼球运动异常"],"hpo_id":"HP:0001332","term_name":"眼球运动异常","default_modifiers":{}},
-    {"keywords":["肌阵挛"],"hpo_id":"HP:0001347","term_name":"肌阵挛","default_modifiers":{}},
-    {"keywords":["肝脾肿大"],"hpo_id":"HP:0001382","term_name":"肝脾肿大","default_modifiers":{}},
-    {"keywords":["肥胖"],"hpo_id":"HP:0001392","term_name":"肥胖","default_modifiers":{}},
-    {"keywords":["脾肿大"],"hpo_id":"HP:0001607","term_name":"脾肿大","default_modifiers":{}},
-    {"keywords":["心电图异常"],"hpo_id":"HP:0001624","term_name":"心电图异常","default_modifiers":{}},
-    {"keywords":["肺充血"],"hpo_id":"HP:0001627","term_name":"肺充血","default_modifiers":{}},
-    {"keywords":["骨畸形"],"hpo_id":"HP:0001637","term_name":"骨畸形","default_modifiers":{}},
-    {"keywords":["扩张型心肌病"],"hpo_id":"HP:0001639","term_name":"扩张型心肌病","default_modifiers":{}},
-    {"keywords":["心脏杂音", "cardiomegaly"],"hpo_id":"HP:0001640","term_name":"心脏杂音","default_modifiers":{}},
-    {"keywords":["空腹低血糖"],"hpo_id":"HP:0001939","term_name":"空腹低血糖","default_modifiers":{}},
-    {"keywords":["发绀"],"hpo_id":"HP:0001947","term_name":"发绀","default_modifiers":{}},
-    {"keywords":["糖尿病"],"hpo_id":"HP:0001956","term_name":"糖尿病","default_modifiers":{}},
-    {"keywords":["基底节异常信号"],"hpo_id":"HP:0001984","term_name":"基底节异常信号","default_modifiers":{}},
-    {"keywords":["肝肿大"],"hpo_id":"HP:0001994","term_name":"肝肿大","default_modifiers":{}},
-    {"keywords":["基底节区MRI异常信号"],"hpo_id":"HP:0002011","term_name":"基底节区MRI异常信号","default_modifiers":{}},
-    {"keywords":["腹痛"],"hpo_id":"HP:0002017","term_name":"腹痛","default_modifiers":{}},
-    {"keywords":["喂养困难"],"hpo_id":"HP:0002033","term_name":"喂养困难","default_modifiers":{}},
-    {"keywords":["振动觉减退"],"hpo_id":"HP:0002060","term_name":"振动觉减退","default_modifiers":{}},
-    {"keywords":["肺部啰音"],"hpo_id":"HP:0002094","term_name":"肺部啰音","default_modifiers":{}},
-    {"keywords":["乳酸性酸中毒"],"hpo_id":"HP:0002154","term_name":"乳酸性酸中毒","default_modifiers":{}},
-    {"keywords":["膀胱功能障碍"],"hpo_id":"HP:0002169","term_name":"膀胱功能障碍","default_modifiers":{}},
-    {"keywords":["VLCFA升高"],"hpo_id":"HP:0002315","term_name":"VLCFA升高","default_modifiers":{}},
-    {"keywords":["脑白质MRI异常"],"hpo_id":"HP:0002500","term_name":"脑白质MRI异常","default_modifiers":{}},
-    {"keywords":["脊髓畸形"],"hpo_id":"HP:0002750","term_name":"脊髓畸形","default_modifiers":{}},
-    {"keywords":["低氧血症"],"hpo_id":"HP:0002788","term_name":"低氧血症","default_modifiers":{}},
-    {"keywords":["低钾血症"],"hpo_id":"HP:0002900","term_name":"低钾血症","default_modifiers":{}},
-    {"keywords":["低镁血症"],"hpo_id":"HP:0002908","term_name":"低镁血症","default_modifiers":{}},
-    {"keywords":["尿钾升高"],"hpo_id":"HP:0003118","term_name":"尿钾升高","default_modifiers":{}},
-    {"keywords":["低钠血症"],"hpo_id":"HP:0003128","term_name":"低钠血症","default_modifiers":{}},
-    {"keywords":["血清CK升高"],"hpo_id":"HP:0003198","term_name":"血清CK升高","default_modifiers":{}},
-    {"keywords":["代谢性碱中毒"],"hpo_id":"HP:0003557","term_name":"代谢性碱中毒","default_modifiers":{}},
-    {"keywords":["假性肌肥大"],"hpo_id":"HP:0003745","term_name":"假性肌肥大","default_modifiers":{}},
-    {"keywords":["易疲劳"],"hpo_id":"HP:0003808","term_name":"易疲劳","default_modifiers":{}},
-    {"keywords":["多饮"],"hpo_id":"HP:0004360","term_name":"多饮","default_modifiers":{}},
-    {"keywords":["上行性麻痹"],"hpo_id":"HP:0006986","term_name":"上行性麻痹","default_modifiers":{}},
-    {"keywords":["呼吸急促"],"hpo_id":"HP:0011947","term_name":"呼吸急促","default_modifiers":{}},
-    {"keywords":["多尿"],"hpo_id":"HP:0011952","term_name":"多尿","default_modifiers":{}},
-    {"keywords":["喂养困难"],"hpo_id":"HP:0011968","term_name":"喂养困难","default_modifiers":{}},
-]
+# 从 data/hpo_dictionary.json 全量加载（11,586+ HPO，1.6 MB）
+_DICT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "hpo_dictionary.json")
+
+def _load_phenotype_dictionary() -> list[dict[str, Any]]:
+    if os.path.exists(_DICT_PATH):
+        try:
+            with open(_DICT_PATH, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+PHENOTYPE_DICTIONARY: list[dict[str, Any]] = _load_phenotype_dictionary()
+print(f"[rare-dx] 全量表型词典加载完成: {len(PHENOTYPE_DICTIONARY)} 个 HPO", flush=True)
+
+
 # 为常见临床表述提供更多同义词/别名/拼音/缩写映射
 SYNONYM_EXTENSIONS: dict[str, list[str]] = {
     # 神经肌肉
