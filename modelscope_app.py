@@ -62,6 +62,29 @@ def start_frontend():
     return proc
 
 
+def wait_for_frontend(port, timeout=120):
+    """等待前端服务就绪（轮询 HTTP）。"""
+    import urllib.request
+    import urllib.error
+
+    url = f"http://127.0.0.1:{port}/"
+    deadline = time.time() + timeout
+    print(f"[app.py] 等待前端就绪 (端口 {port})...", flush=True)
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as resp:
+                if resp.status < 500:
+                    print(f"[app.py] 前端已就绪 (HTTP {resp.status})", flush=True)
+                    return True
+        except urllib.error.URLError:
+            pass
+        except Exception:
+            pass
+        time.sleep(2)
+    print(f"[app.py] 前端等待超时 ({timeout}s)，继续启动代理", flush=True)
+    return False
+
+
 def start_caddy():
     """用简单的 Python 反向代理统一暴露 7860 端口。"""
     import http.server
@@ -138,7 +161,7 @@ if __name__ == "__main__":
 
     # 启动前端
     start_frontend()
-    time.sleep(2)
+    wait_for_frontend(FRONTEND_PORT, timeout=120)
 
     # 启动反向代理（统一端口 7860）
     print(f"[app.py] rare-dx 已启动 -> http://0.0.0.0:{PORT}", flush=True)
