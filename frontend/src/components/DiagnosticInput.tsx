@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSessionStore } from '@/store/session'
-import { fetchSSE } from '@/lib/api'
+import { listenSSE } from '@/lib/api'
 
 export default function DiagnosticInput() {
   const [age, setAge] = useState('3 月龄')
@@ -11,8 +11,19 @@ export default function DiagnosticInput() {
     '男婴，3月龄，进行性肌张力低下，喂养困难，乳酸性酸中毒（血乳酸 5.2 mmol/L），眼球震颤'
   )
   const store = useSessionStore()
+  const cleanupRef = useRef<(() => void) | null>(null)
 
-  const start = async () => {
+  useEffect(() => {
+    // 组件卸载时关闭 SSE 连接
+    return () => {
+      if (cleanupRef.current) {
+        cleanupRef.current()
+        cleanupRef.current = null
+      }
+    }
+  }, [])
+
+  const start = () => {
     const text = description.trim()
     if (!text || store.isStreaming) return
     store.reset()
@@ -20,44 +31,47 @@ export default function DiagnosticInput() {
     const sid = `s-${Date.now()}`
     useSessionStore.setState({ sessionId: sid })
 
-    try {
-      await fetchSSE(text, sid, (event, data) => {
-        store.addEvent(event, data)
-        switch (event) {
-          case 'phenotype_vector':
-            useSessionStore.setState({ phenotypeVectors: data.phenotypes || [] })
-            break
-          case 'hypothesis_ranking':
-            useSessionStore.setState({ hypotheses: data.hypotheses || [] })
-            break
-          case 'temporal_match':
-            useSessionStore.setState({ temporalMatches: data.matches || [] })
-            break
-          case 'inheritance_pattern':
-            useSessionStore.setState({ geneticConstraint: data })
-            break
-          case 'evoi_recommendation':
-            useSessionStore.setState({ pathway: data })
-            break
-          case 'report_delta':
-            useSessionStore.setState({ report: data })
-            break
-          case 'agent_start':
-            useSessionStore.setState({ currentAgent: data.agent })
-            break
-          case 'round_end':
-            useSessionStore.setState({ isStreaming: false, currentAgent: null })
-            break
-          case 'error':
-            useSessionStore.setState({ isStreaming: false })
-            break
-        }
-      })
-    } catch (e) {
-      console.error('SSE 失败:', e)
-      useSessionStore.setState({ isStreaming: false })
+    // 先关闭旧连接
+    if (cleanupRef.current) {
+      cleanupRef.current()
     }
+
+    cleanupRef.current = listenSSE(text, sid, (event, data) => {
+      store.addEvent(event, data)
+      switch (event) {
+        case 'phenotype_vector':
+          useSessionStore.setState({ phenotypeVectors: data.phenotypes || [] })
+          break
+        case 'hypothesis_ranking':
+          useSessionStore.setState({ hypotheses: data.hypotheses || [] })
+          break
+        case 'temporal_match':
+          useSessionStore.setState({ temporalMatches: data.matches || [] })
+          break
+        case 'inheritance_pattern':
+          useSessionStore.setState({ geneticConstraint: data })
+          break
+        case 'evoi_recommendation':
+          useSessionStore.setState({ pathway: data })
+          break
+        case 'report_delta':
+          useSessionStore.setState({ report: data })
+          break
+        case 'agent_start':
+          useSessionStore.setState({ currentAgent: data.agent })
+          break
+        case 'round_end':
+          useSessionStore.setState({ isStreaming: false, currentAgent: null })
+          break
+        case 'error':
+          useSessionStore.setState({ isStreaming: false })
+          break
+      }
+    })
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _hasMetrics = false
 
   return (
     <section style={{

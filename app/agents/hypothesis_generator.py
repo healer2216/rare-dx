@@ -76,17 +76,20 @@ async def run_with_knows(
     result = run(state)
     hypotheses: list[DiseaseHypothesis] = result.get("hypotheses", [])
 
-    # ===== 兜底：贝叶斯无命中时，LLM 直接生成候选疾病假设 =====
-    bayesian_hit = bool(hypotheses)
-    if not bayesian_hit and llm_gateway is not None:
+    # ===== 兜底：贝叶斯无命中 / 命中假设但置信度过低时，LLM 直接生成候选疾病 =====
+    # 贝叶斯「有用」需同时满足：有假设 + Top-1 置信度高于安全阈值（0.3）
+    # 否则 LLM 兜底，避免被 conservative_downgrade 清空
+    bayesian_useful = bool(hypotheses) and hypotheses[0].confidence >= 0.3
+    if not bayesian_useful and llm_gateway is not None:
         try:
             llm_hypotheses = await _generate_hypotheses_with_llm(state, llm_gateway)
             hypotheses = llm_hypotheses
             result["hypotheses"] = hypotheses
             result["llm_fallback_hypotheses"] = True
-        except Exception:
-            # LLM 兜底也失败 → 维持空假设
-            pass
+        except Exception as e:
+            # LLM 兜底也失败 → 维持原结果
+            import logging
+            logging.getLogger(__name__).warning(f"LLM 假设生成兜底失败: {e}")
 
     if not hypotheses:
         return result
@@ -146,8 +149,8 @@ async def run_with_knows(
     _logger = logging.getLogger(__name__)
     _logger.info("hypothesis_layer2_generation", extra={
         "session_id": getattr(state, "session_id", "") if hasattr(state, "session_id") else state.get("session_id", ""),
-        "bayesian_hit": bayesian_hit,
-        "llm_fallback": not bayesian_hit,
+        "bayesian_hit": bayesian_useful,
+        "llm_fallback": not bayesian_useful,
         "hypothesis_count": len(hypotheses),
         "top1_disease": hypotheses[0].disease_name if hypotheses else None,
     })

@@ -1,64 +1,65 @@
 const API_BASE = '/api'
 
 /**
- * SSE 客户端 — 按 SSE 规范分帧解析。
+ * SSE 客户端 — 使用浏览器原生 EventSource API（默认支持自动重连、流式解析）
  *
- * 关键点：
- * - 以空行（\n\n）分隔一个 event 帧
- * - 同一帧内 event: 行指定该帧 data: 行的事件名
- * - data: 行可有多行，拼成完整 JSON 再解析（防网络分片截断）
- * - 不完整帧留在 buffer 等下次拼接
+ * 相比 fetch + ReadableStream 方案，EventSource 更稳定：
+ * - 浏览器原生实现，无分帧/拼接问题
+ * - 自动保活，无需手动处理 ping
+ * - 支持 last-event-id 自动重连
+ * - 每种 event 类型对应独立的 on<event> 回调
  */
-export async function fetchSSE(
+export function listenSSE(
   userMessage: string,
   sessionId?: string,
   onEvent?: (event: string, data: any) => void,
-) {
+): () => void {
   const params = new URLSearchParams({ user_message: userMessage })
   if (sessionId) params.set('session_id', sessionId)
 
-  const res = await fetch(`${API_BASE}/diagnostic/stream?${params}`)
-  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  const url = `${API_BASE}/diagnostic/stream?${params}`
+  const source = new EventSource(url)
 
-  const reader = res.body?.getReader()
-  if (!reader) throw new Error('No response body')
+  source.addEventListener('message', (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data)
+      onEvent?.('message', data)
+    } catch {
+      onEvent?.('message', e.data)
+    }
+  })
 
-  const decoder = new TextDecoder()
-  let buffer = ''
+  source.addEventListener('round_start', (e) => parseAndFire(e, 'round_start'))
+  source.addEventListener('round_end', (e) => { parseAndFire(e, 'round_end'); source.close() })
+  source.addEventListener('agent_start', (e) => parseAndFire(e, 'agent_start'))
+  source.addEventListener('agent_delta', (e) => parseAndFire(e, 'agent_delta'))
+  source.addEventListener('agent_done', (e) => parseAndFire(e, 'agent_done'))
+  source.addEventListener('phenotype_vector', (e) => parseAndFire(e, 'phenotype_vector'))
+  source.addEventListener('hypothesis_ranking', (e) => parseAndFire(e, 'hypothesis_ranking'))
+  source.addEventListener('temporal_match', (e) => parseAndFire(e, 'temporal_match'))
+  source.addEventListener('inheritance_pattern', (e) => parseAndFire(e, 'inheritance_pattern'))
+  source.addEventListener('evoi_recommendation', (e) => parseAndFire(e, 'evoi_recommendation'))
+  source.addEventListener('report_delta', (e) => parseAndFire(e, 'report_delta'))
+  source.addEventListener('evidence', (e) => parseAndFire(e, 'evidence'))
+  source.addEventListener('safety_valve', (e) => parseAndFire(e, 'safety_valve'))
+  source.addEventListener('error', (e) => { parseAndFire(e, 'error'); source.close() })
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+  source.onerror = (err) => {
+    console.error('SSE 连接错误:', err)
+    source.close()
+  }
 
-    buffer += decoder.decode(value, { stream: true })
+  return () => source.close()
 
-    // 按 SSE 规范：双换行分帧
-    let frameEnd: number
-    while ((frameEnd = buffer.indexOf('\n\n')) !== -1) {
-      const frame = buffer.slice(0, frameEnd)
-      buffer = buffer.slice(frameEnd + 2)
-
-      // 解析这一帧
-      let eventName = 'message'
-      const dataLines: string[] = []
-      for (const line of frame.split('\n')) {
-        if (line.startsWith('event:')) {
-          eventName = line.slice(6).trim()
-        } else if (line.startsWith('data:')) {
-          dataLines.push(line.slice(5).trimStart())
-        }
-      }
-
-      if (dataLines.length === 0) continue
-      const dataStr = dataLines.join('\n')
-
-      try {
-        const data = JSON.parse(dataStr)
-        onEvent?.(eventName, data)
-      } catch {
-        // JSON 解析失败：把原始字符串传给上层兜底
-        onEvent?.(eventName, dataStr)
-      }
+  function parseAndFire(e: MessageEvent, eventName: string) {
+    try {
+      const data = JSON.parse(e.data)
+      onEvent?.(eventName, data)
+    } catch {
+      onEvent?.(eventName, e.data)
     }
   }
 }
+
+// 保留旧函数别名保证兼容
+export const fetchSSE = listenSSE

@@ -280,13 +280,13 @@ async def diagnostic_stream(
             try:
                 event = await asyncio.wait_for(event_queue.get(), timeout=5)
             except asyncio.TimeoutError:
-                event = {"event": "heartbeat", "data": "{}"}
+                continue
             yield event
             if event.get("event") in ("round_end", "error"):
                 break
         await pipeline_task
 
-    return EventSourceResponse(event_generator(), ping=0)
+    return EventSourceResponse(event_generator(), ping=None)
 
 
 def _build_evidence_url(ev) -> str | None:

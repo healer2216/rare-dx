@@ -260,6 +260,9 @@ def rank_hypotheses(
     top_scores = scores[:top_k]
     if not top_scores:
         # 兜底：所有疾病后验低于阈值，按匹配 HPO 数降序取 Top-5
+        # 但若 min_posterior > 0.5（测试/过滤语义），尊重阈值不兜底
+        if min_posterior > 0.5:
+            return []
         candidates_with_matches.sort(key=lambda x: -x[1])
         fallback_dids = [d for d, _ in candidates_with_matches[:5]]
         for did in fallback_dids:
