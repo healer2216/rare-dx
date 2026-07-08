@@ -70,5 +70,13 @@
       "运动功能损害"
     ],
     "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0003985",
+    "term_name": "蝶形红斑",
+    "keywords": [
+      "蝶形红斑"
+    ],
+    "default_modifiers": {}
   }
 ]

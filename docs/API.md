@@ -2,7 +2,8 @@
 
 ## 一、基础信息
 
-**Base URL**: `http://localhost:8000`
+**Base URL**: `http://localhost:8765`（后端直连）
+**前端代理**: 通过 Next.js rewrite (`/api/*` → `localhost:8765`)，前端端口 3001
 **Content-Type**: `application/json`
 **认证方式**: 无（演示版本）
 **CORS**: 已启用，允许所有来源
@@ -15,13 +16,11 @@
 |-----|------|------|------|
 | GET | `/api/health` | 健康检查 | 服务状态检测 |
 | GET | `/api/diagnostic/stream` | SSE流式诊断 | 核心接口，5层推理流水线 |
-| POST | `/api/agent/session` | 创建诊断会话 | 新建会话 |
-| GET | `/api/agent/session/{session_id}` | 查询会话 | 获取当前会话状态快照 |
-| POST | `/api/agent/phenotype/{session_id}` | 表型分析 | Layer 1 独立测试 |
-| POST | `/api/agent/hypothesis/{session_id}` | 假设生成 | Layer 2 独立测试 |
-| POST | `/api/agent/temporal/{session_id}` | 时序推理 | Layer 3 独立测试 |
-| POST | `/api/agent/genetic/{session_id}` | 遗传推理 | Layer 4 独立测试 |
-| POST | `/api/agent/pathway/{session_id}` | 路径规划 | Layer 5 独立测试 |
+| GET | `/api/report/download` | 下载诊断报告 | DOCX / PDF |
+| GET | `/api/sessions` | 历史会话列表 | SQLite 持久化 |
+| GET | `/api/sessions/{session_id}` | 会话详情 | 完整状态快照 |
+| GET | `/api/sessions/{session_id}/audit` | 审计日志 | 推理链路追溯 |
+| DELETE | `/api/sessions/{session_id}` | 删除会话 | — |
 
 ---
 
@@ -55,16 +54,41 @@ Accept: text/event-stream
 
 **事件流顺序**：
 ```
-round_start → agent_start(phenotype) → agent_delta → phenotype_vector → agent_done
-→ agent_start(hypothesis) → hypothesis_ranking → agent_done
-→ agent_start(temporal) → temporal_match → agent_done
-→ agent_start(genetic) → inheritance_pattern → agent_done
-→ agent_start(pathway) → evoi_recommendation → agent_done
-→ report_delta → round_end
+round_start → agent_start(phenotype) → agent_delta → evidence
+→ phenotype_vector(含 metrics) → agent_done
+→ agent_start(hypothesis) → evidence → hypothesis_ranking → agent_done
+→ agent_start(temporal) → evidence → temporal_match → agent_done
+→ agent_start(genetic) → evidence → inheritance_pattern → agent_done
+→ agent_start(pathway) → evidence → evoi_recommendation → agent_done
+→ agent_start(report) → report_delta → agent_done
+→ round_end
 ```
 
+**SSE 事件类型（14 种）**：
+
+| 事件 | 触发时机 | payload 关键字段 |
+|------|---------|-----------------|
+| `round_start` | 推理开始 | `round`, `session_id` |
+| `agent_start` | 每层启动 | `agent`, `layer` |
+| `agent_delta` | 中间状态 | `agent`, `delta` |
+| `agent_done` | 每层完成 | `agent`, `output` |
+| `phenotype_vector` | L1 完成 | `phenotypes[...]`, `metrics{llm_count, dict_count, merged_count}` |
+| `hypothesis_ranking` | L2 完成 | `hypotheses[...]`（含 LLM 兜底标注） |
+| `temporal_match` | L3 完成 | `matches[...]` |
+| `inheritance_pattern` | L4 完成 | `patterns[...]`, `compatible`, `incompatible` |
+| `evoi_recommendation` | L5 完成 | `steps[...]`, `total_information_gain` |
+| `report_delta` | L6 报告 | 结构化报告 |
+| `evidence` | 各层证据 | `source_layer`, `references[...]` |
+| `safety_valve` | 安全触发 | `type`, `severity`, `message` |
+| `round_end` | 回合结束 | `round`, `session_id` |
+| `error` | 异常 | `code`, `message` |
+
 ```bash
-curl -N "http://localhost:8000/api/diagnostic/stream?user_message=男婴，3月龄，进行性肌张力低下，喂养困难，乳酸性酸中毒，头颅MRI示基底节区对称性异常信号"
+# 后端直连（端口 8765，无 ping 干扰）
+curl -sN "http://localhost:8765/api/diagnostic/stream?user_message=男婴，3月龄，进行性肌张力低下&session_id=demo"
+
+# 通过前端代理（端口 3001）
+curl -sN "http://localhost:3001/api/diagnostic/stream?user_message=男婴，3月龄，进行性肌张力低下&session_id=demo"
 ```
 
 ---

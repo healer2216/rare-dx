@@ -1,6 +1,6 @@
 # rare-dx · 罕见病诊断辅助系统
 
-> 医学 AI 极客松项目 — 五层临床推理引擎 + 循证证据池
+> 医学 AI 极客松项目 — 五层临床推理引擎 + 循证证据池 + 全量表型词典
 
 ## 定位
 
@@ -15,6 +15,7 @@
 ## 核心特性
 
 - **五层推理引擎**：模拟临床鉴别诊断的完整思维链
+- **全量表型词典**：11,606 个 HPO 术语（频率表加载）+ LLM 语义匹配自动学习缓存
 - **贝叶斯概率推理**：基于 Orphanet/OMIM 疾病-表型频率表的量化诊断
 - **时序推理**：发病年龄、进展速度、症状序列作为诊断信号
 - **遗传推理**：家系分析 + 孟德尔遗传模式推断
@@ -22,6 +23,8 @@
 - **循证证据集成**：KnowS 6 源医学证据检索，每层推理均有文献支撑
 - **证据弹窗系统**：每个推理节点右上角 `🅔 N` 徽标 → 点击弹出证据明细 → 有 DOI 的文献可跳转原文
 - **安全机制**：4 类安全阀 + 3 档闸门（standard / relaxed / strict）+ 高风险升级 + 议题漂移检测
+- **LLM 假设生成兜底**：Bayesian 无命中/低置信度时自动触发 LLM 生成候选疾病
+- **词典学习缓存**：LLM 语义匹配的 term_name→hpo_id 自动持久化，逐步提升词典命中率
 
 ## 技术栈
 
@@ -31,7 +34,7 @@
 | 前端 | Next.js 14 / TypeScript / Tailwind / shadcn/ui |
 | LLM | DeepSeek-V3 / GPT-4o / Qwen / StepFun (`step-3.7-flash`) |
 | 证据 | KnowS Evidence Search API（6 源：paper_en/paper_cn/guide/trial/meeting/package_insert） |
-| 知识库 | HPO / Orphanet / OMIM / 扩展常见病库（34 疾病，201 频率条目）|
+| 知识库 | HPO / Orphanet / OMIM（11,586 个 HPO 频率条目，12,958 疾病）|
 | 存储 | SQLite（诊断会话 + 审计日志持久化）|
 
 ## 架构概览
@@ -39,17 +42,22 @@
 ```
 用户输入 (临床描述)
   │
-  ├─ [Safety]    议题漂移检测 / 高风险关键词 / 跨层冲突
+  ├─ [Safety]    议题漂移检测 / 高风险关键词 / 跨层冲突 / 保守降级
   │
-  ├─ Layer 1: 表型分析器      → HPO 术语提取 + NLP 增强
+  ├─ Layer 1: 表型分析器      → LLM NER(主力) + 全量词典(11,606 HPO) 兜底
+  │    ├─ LLM≥5项: LLM为底座，词典补充遗漏
+  │    └─ LLM<5项: 词典为底座，LLM补充
   │    └─ KnowS: Orphanet + HPO 检索
-  ├─ Layer 2: 假设生成器      → 贝叶斯后验排序 Top-3
+  │    └─ [学习缓存]  LLM提取的 term_name 自动持久化，逐步提升命中率
+  ├─ Layer 2: 假设生成器      → 贝叶斯后验排序 Top-5
+  │    ├─ 贝叶斯命中：LLM 鉴别诊断解释 + KnowS 检索
+  │    └─ 贝叶斯无命中/低置信度：LLM 直接生成候选疾病假设
   │    └─ KnowS: PubMed + 中文期刊检索
-  ├─ Layer 3: 时序推理器      → 发病年龄/进展模式匹配
+  ├─ Layer 3: 时序推理器      → 发病年龄/进展模式匹配（兼容 LLM 假设）
   │    └─ KnowS: PubMed + MedlinePlus 检索
-  ├─ Layer 4: 遗传推理器      → 孟德尔模式推断
+  ├─ Layer 4: 遗传推理器      → 孟德尔模式推断（兼容 LLM 假设）
   │    └─ KnowS: Orphanet + 指南检索
-  ├─ Layer 5: 路径规划器      → EVOI 排序推荐检查
+  ├─ Layer 5: 路径规划器      → EVOI 排序推荐检查（兼容 LLM 假设）
   │    └─ KnowS: ClinicalTrials + PubMed 检索
   │
   ├─ Layer 6: 报告综合器      → 结构化报告 + LLM 临床印象
@@ -84,8 +92,8 @@ npm install
 ### 启动
 
 ```bash
-# 后端（端口 8765）
-python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8765
+# 后端（端口 8765，--reload 自动热重载）
+python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload
 
 # 前端（端口 3001）
 cd frontend && npm run dev -- -p 3001
@@ -99,7 +107,7 @@ ssh -L 3001:127.0.0.1:3001 -L 8765:127.0.0.1:8765 root@你的服务器地址
 ### 测试
 
 ```bash
-# 全套
+# 全套（65 passed, 0 failed）
 pytest tests/ --asyncio-mode=auto -q
 
 # 单用例
@@ -119,14 +127,16 @@ pytest tests/test_golden.py -v
 | GET | `/api/sessions/{id}/audit` | 某会话审计日志 |
 | DELETE | `/api/sessions/{id}` | 删除会话 |
 
-## SSE 事件类型（12 种）
+> 前端通过 Next.js rewrite 代理 (`/api/*` → `localhost:8765`)，浏览器直接访问前端端口 3001 即可。
+
+## SSE 事件类型（14 种）
 
 | 事件 | 说明 |
 |------|------|
 | `round_start` | 推理回合开始 |
 | `agent_start` / `agent_delta` / `agent_done` | Agent 生命周期 |
-| `phenotype_vector` | Layer 1 表型向量 |
-| `hypothesis_ranking` | Layer 2 贝叶斯排序 |
+| `phenotype_vector` | Layer 1 表型向量（含 metrics：LLM/词典/合并数量） |
+| `hypothesis_ranking` | Layer 2 贝叶斯排序（含 LLM 兜底标注） |
 | `temporal_match` | Layer 3 时序匹配 |
 | `inheritance_pattern` | Layer 4 遗传模式 |
 | `evoi_recommendation` | Layer 5 EVOI 路径 |
@@ -150,14 +160,20 @@ rare-dx/
 │   ├── safety/           # 4 类安全阀 + 3 档闸门
 │   └── audit/            # 审计日志
 ├── frontend/             # Next.js 14 + TypeScript
-│   └── src/components/   # 9 组件 + EvidenceModal 证据弹窗
+│   └── src/components/   # 11 组件 + EvidenceModal 证据弹窗
 ├── config/               # YAML 配置（LLM providers / 路径等）
-├── data/                 # disease_meta.json / orphanet_freq.json / demo_cases/
-│   ├── disease_meta.json    34 疾病元数据（罕见+常见）
-│   └── hpo_frequency/
-│       └── orphanet_freq.json  201 条 HPO 频率条目
+├── data/                 # 全量表型词典 + 频率表 + 疾病元数据
+│   ├── disease_meta.json          12,958 疾病元数据
+│   ├── hpo_frequency/
+│   │   └── orphanet_freq.json     267,633 条 HPO 频率条目
+│   ├── hpo_dictionary.json         11,606 个 HPO 全量词典
+│   └── hpo_learned_keywords.json   LLM 学习缓存（自动积累）
 ├── docs/                 # PRD / ARCHITECTURE / API 文档
-└── tests/                # 57+ 测试（含 golden 回归基线）
+├── .atomcode/
+│   └── skills/           # AtomCode 子代理（安全审查/API文档/测试生成）
+├── .env.example          # 配置模板（去敏）
+├── .mcp.json             # MCP 服务（context7 + Playwright）
+└── tests/                # 65+ 测试（含 golden 回归基线）
     ├── golden/           # D1/D2/D3 回归基线 expected.json
     └── test_golden.py    # 8 个 golden 回归测试
 ```
@@ -172,9 +188,9 @@ rare-dx/
 ## 测试覆盖
 
 ```
-57 passed, 2 skipped  in 13.86s
+65 passed, 0 failed, 2 skipped  in 102s
 
-├── test_reasoning.py    15  算法层
+├── test_reasoning.py    15  算法层（含 min_posterior 阈值测试）
 ├── test_agents.py        10  Agent 层
 ├── test_safety.py        12  安全机制
 ├── test_tools.py         8   工具层
