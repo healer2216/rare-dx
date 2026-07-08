@@ -137,9 +137,6 @@ cd frontend && npm install && npm run dev -- -p 3001
 > 以下截图来自实际部署运行（魔搭创空间）
 
 ![运行结果 1](docs/screenshots/image.png)
-![运行结果 2](docs/screenshots/image%20copy.png)
-![运行结果 3](docs/screenshots/image%20copy%202.png)
-
 ---
 
 ## 5. 数据来源与知识库
