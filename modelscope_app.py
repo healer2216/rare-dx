@@ -35,8 +35,19 @@ def start_backend():
     return proc
 
 
+def is_frontend_available():
+    """判断前端是否可启动：需要 package.json 且存在 .next 构建产物或依赖目录。"""
+    has_pkg = os.path.isfile(os.path.join(FRONTEND_DIR, "package.json"))
+    has_build = os.path.isdir(os.path.join(FRONTEND_DIR, ".next"))
+    has_deps = os.path.isdir(os.path.join(FRONTEND_DIR, "node_modules"))
+    return has_pkg and (has_build or has_deps)
+
+
 def start_frontend():
     """启动 Next.js 前端（生产模式，用已构建的静态文件）。"""
+    if not is_frontend_available():
+        print("[app.py] 前端依赖/构建产物缺失，跳过前端启动", flush=True)
+        return None
     print("[app.py] 启动前端 (Next.js)...", flush=True)
     # 优先用已构建的产物（npm run build + npm start）
     build_dir = os.path.join(FRONTEND_DIR, ".next")
@@ -159,9 +170,10 @@ if __name__ == "__main__":
     backend = start_backend()
     time.sleep(3)
 
-    # 启动前端
-    start_frontend()
-    wait_for_frontend(FRONTEND_PORT, timeout=120)
+    # 启动前端（若不可用则仅保留下游 API 服务）
+    frontend = start_frontend()
+    if frontend is not None:
+        wait_for_frontend(FRONTEND_PORT, timeout=120)
 
     # 启动反向代理（统一端口 7860）
     print(f"[app.py] rare-dx 已启动 -> http://0.0.0.0:{PORT}", flush=True)
