@@ -43,6 +43,20 @@ def wait_for_backend(port, timeout=120):
     return False
 
 
+def _tail_process(name: str, proc: subprocess.Popen):
+    """把子进程 stdout/stderr 实时 tail 到父进程日志，避免静默失败。"""
+    try:
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                if proc.poll() is not None:
+                    break
+                continue
+            print(f"[{name}] {line}", flush=True)
+    except Exception:
+        pass
+
+
 def start_backend():
     """启动 FastAPI 后端（保留输出以便排查启动失败原因）。"""
     print("[app.py] 启动后端 (uvicorn)...", flush=True)
@@ -54,7 +68,10 @@ def start_backend():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         universal_newlines=True,
+        bufsize=1,
     )
+    t = threading.Thread(target=_tail_process, args=("uvicorn", proc), daemon=True)
+    t.start()
     processes.append(proc)
     return proc
 
@@ -82,6 +99,7 @@ def start_frontend():
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
+            bufsize=1,
         )
     else:
         # 没有构建产物就用 dev 模式（构建耗时较长）
@@ -92,7 +110,10 @@ def start_frontend():
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
+            bufsize=1,
         )
+    t = threading.Thread(target=_tail_process, args=("next", proc), daemon=True)
+    t.start()
     processes.append(proc)
     return proc
 
