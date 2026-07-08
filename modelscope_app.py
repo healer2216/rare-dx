@@ -134,7 +134,7 @@ def start_caddy():
                 with urllib.request.urlopen(req, timeout=300) as resp:
                     self.send_response(resp.status)
                     for key, value in resp.headers.items():
-                        if key.lower() not in ("transfer-encoding", "content-encoding", "content-length"):
+                        if key.lower() not in ("transfer-encoding", "content-length"):
                             self.send_header(key, value)
                     self.end_headers()
                     self.wfile.write(resp.read())
