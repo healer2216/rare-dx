@@ -6,6 +6,8 @@ WORKDIR /home/user/app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     xz-utils \
+    fonts-noto-cjk \
+    fonts-wqy-microhei \
     && rm -rf /var/lib/apt/lists/*
 
 # 下载预编译 Node.js 18（轻量，避免 NodeSource 脚本 OOM）
