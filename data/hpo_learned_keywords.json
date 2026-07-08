@@ -14,5 +14,61 @@
       "构音障碍"
     ],
     "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0011874",
+    "term_name": "上呼吸道感染",
+    "keywords": [
+      "上呼吸道感染"
+    ],
+    "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0002012",
+    "term_name": "胃肠道症状",
+    "keywords": [
+      "胃肠道症状"
+    ],
+    "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0010837",
+    "term_name": "肢体疼痛",
+    "keywords": [
+      "肢体疼痛"
+    ],
+    "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0003251",
+    "term_name": "感觉异常",
+    "keywords": [
+      "感觉异常"
+    ],
+    "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0004877",
+    "term_name": "呼吸肌麻痹",
+    "keywords": [
+      "呼吸肌麻痹"
+    ],
+    "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0003677",
+    "term_name": "急性起病",
+    "keywords": [
+      "急性起病"
+    ],
+    "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0001315",
+    "term_name": "运动功能损害",
+    "keywords": [
+      "运动功能损害"
+    ],
+    "default_modifiers": {}
   }
 ]
