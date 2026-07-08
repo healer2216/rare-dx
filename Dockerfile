@@ -20,9 +20,13 @@ COPY config/ ./config/
 COPY data/ ./data/
 RUN pip install --no-cache-dir -e ".[dev]"
 
-# 复制前端并安装依赖（不构建，运行时启动；若尚未初始化则跳过）
+# 复制前端并安装依赖、构建（可选前端；有 package.json 才构建）
 COPY frontend/ ./frontend/
-RUN if [ -f frontend/package.json ]; then cd frontend && npm install; fi
+RUN if [ -f frontend/package.json ]; then \
+      cd frontend && \
+      npm install && \
+      npm run build; \
+    fi
 
 # 复制入口文件
 COPY modelscope_app.py ./
