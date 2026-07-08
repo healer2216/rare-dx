@@ -15,7 +15,7 @@ export default function DiagnosticStream() {
     store.reset()
     store.setStreaming(true)
     const sid = `s-${Date.now()}`
-    useSessionStore.setState({ sessionId: sid })
+    useSessionStore.setState({ sessionId: sid, currentAgent: 'phenotype' })
     try {
       await fetchSSE(input, sid, (event, data) => {
         store.addEvent(event, data)
