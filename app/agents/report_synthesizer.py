@@ -14,6 +14,7 @@ from ..tools.llm_gateway import LLMGateway
 
 
 def run(state: dict | Any) -> dict:
+    print("[L6] report_synthesizer start", flush=True)
     """Layer 6 入口：综合五层推理结果，生成报告。"""
     if hasattr(state, "phenotype_profile"):
         profile = state.phenotype_profile

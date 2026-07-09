@@ -25,12 +25,14 @@ def run(state: dict | Any) -> dict:
 
     同步版本：只做贝叶斯排序，不调 KnowS。
     """
+    print("[L2] hypothesis_generator start", flush=True)
     if hasattr(state, "phenotype_profile"):
         profile = state.phenotype_profile
     else:
         profile = state.get("phenotype_profile") if isinstance(state, dict) else None
 
     if not profile or not profile.vectors:
+        print("[L2] no phenotype_profile/vectors, return empty", flush=True)
         return {"hypotheses": []}
 
     demographic = {}
@@ -50,13 +52,16 @@ def run(state: dict | Any) -> dict:
                 "sex": pp.get("sex"),
             }
 
+    print(f"[L2] rank_hypotheses start vectors={len(profile.vectors) if profile and hasattr(profile, 'vectors') else 'na'} demographic={demographic}", flush=True)
     hypotheses = rank_hypotheses(
         phenotype_profile=profile,
         demographic=demographic,
         top_k=10,
         min_posterior=1e-8,
     )
-
+    print(f"[L2] rank_hypotheses done count={len(hypotheses)} top1={hypotheses[0].disease_name if hypotheses else None}", flush=True)
+    for h in hypotheses[:3]:
+        print(f"[L2] hypothesis rank={h.rank} id={h.disease_id} name={h.disease_name} posterior={h.bayesian_score:.6f} confidence={h.confidence:.2f}", flush=True)
     return {"hypotheses": hypotheses}
 
 

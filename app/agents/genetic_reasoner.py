@@ -19,6 +19,7 @@ from ..tools.llm_gateway import LLMGateway
 
 def run(state: dict | Any) -> dict:
     """Layer 4 入口：推断遗传模式 + 检查假设兼容性 + 触发回流。"""
+    print("[L4] genetic_reasoner start", flush=True)
     if hasattr(state, "hypotheses"):
         hypotheses = state.hypotheses
     else:

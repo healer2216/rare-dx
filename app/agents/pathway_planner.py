@@ -102,6 +102,7 @@ TEST_CATALOG: list[dict[str, Any]] = [
 
 
 def run(state: dict | Any) -> dict:
+    print("[L5] pathway_planner start", flush=True)
     """Layer 5 入口：基于 EVOI 推荐检查路径。"""
     if hasattr(state, "hypotheses"):
         hypotheses = state.hypotheses

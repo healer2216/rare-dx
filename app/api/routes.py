@@ -125,10 +125,12 @@ async def diagnostic_stream(
         ]
 
         try:
+            print(f"[pipeline] session={sid} user_message={user_message[:80]}...", flush=True)
             await push("round_start", {"round": 1, "session_id": sid})
 
             # ===== 安全闸门 1：入口处高风险升级 =====
             safety_level = "standard"
+            print(f"[pipeline] safety_level={safety_level} checking entry triggers...", flush=True)
             new_level, esc_trigger = escalate_safety_level(safety_level, user_message)
             if esc_trigger:
                 safety_level = new_level
@@ -156,6 +158,7 @@ async def diagnostic_stream(
 
             for name, fn in layers:
                 label = _AGENT_LABEL[name]
+                print(f"[pipeline] layer={name} start state_keys={list(state.keys())[:10]}", flush=True)
                 await push("agent_start", {"agent": name, "layer": name})
                 await push("agent_delta", {"agent": name, "delta": f"{label} 推理中..."})
 
@@ -163,12 +166,32 @@ async def diagnostic_stream(
                     result = await call_layer(name, fn)
                 except TypeError:
                     # report_synthesizer 是同步函数，回退
+                    print(f"[pipeline] layer={name} fallback sync", flush=True)
                     result = fn(state)
                 except Exception as e:
+                    print(f"[pipeline] layer={name} failed: {e}", flush=True)
                     await push("error", {"code": "agent_failed", "message": f"{name}: {e}"})
                     pipeline_aborted = True
                     break
 
+                print(f"[pipeline] layer={name} done keys={list(result.keys())[:8]}", flush=True)
+                # Print layer-specific summaries
+                if name == "phenotype":
+                    pv = result.get("phenotype_profile")
+                    if pv and hasattr(pv, "vectors"):
+                        print(f"[pipeline] phenotype_vectors={len(pv.vectors)} llm_metrics={result.get('layer1_metrics')}", flush=True)
+                elif name == "hypothesis":
+                    hyps = result.get("hypotheses", [])
+                    print(f"[pipeline] hypotheses={len(hyps)} top1={hyps[0].disease_name if hyps else None} top1_posterior={hyps[0].bayesian_score if hyps else None}", flush=True)
+                elif name == "temporal":
+                    tmatch = result.get("temporal_matches", [])
+                    print(f"[pipeline] temporal_matches={len(tmatch)}", flush=True)
+                elif name == "genetic":
+                    patterns = result.get("inheritance_patterns", [])
+                    print(f"[pipeline] inheritance_patterns={len(patterns)}", flush=True)
+                elif name == "pathway":
+                    steps = result.get("pathway_steps", [])
+                    print(f"[pipeline] pathway_steps={len(steps)}", flush=True)
                 state.update(result)
 
                 # ===== 安全闸门 3：hypothesis 后保守降级 =====
@@ -176,6 +199,7 @@ async def diagnostic_stream(
                     state["safety_level"] = safety_level
                     should_down, reason = conservative_downgrade(state, safety_level)
                     if should_down and reason:
+                        print(f"[pipeline] layer=hypothesis conservative_downgrade reason={reason}", flush=True)
                         await push("safety_valve", {
                             "type": "conservative_downgrade",
                             "severity": "warning",
@@ -184,10 +208,12 @@ async def diagnostic_stream(
                         })
                         # 清空假设，阻止后续层基于低置信度假设推理
                         state["hypotheses"] = []
+                        print(f"[pipeline] layer=hypothesis hypotheses cleared", flush=True)
 
                 # ===== 安全闸门 4：每层后全量检查（跨层冲突/状态压缩）=====
                 layer_trigger = check_safety(state)
                 if layer_trigger and layer_trigger.valve_id not in ("topic_drift", "emergency"):
+                    print(f"[pipeline] layer={name} safety_trigger={layer_trigger.valve_id}", flush=True)
                     await push("safety_valve", {
                         "type": layer_trigger.valve_id,
                         "severity": layer_trigger.severity,
@@ -197,6 +223,7 @@ async def diagnostic_stream(
 
                 # 收集本层证据
                 layer_evs = result.get("current_layer_evidences", [])
+                print(f"[pipeline] layer={name} evidences={len(layer_evs)}", flush=True)
                 if layer_evs:
                     for ev in layer_evs:
                         evidence_pool[ev.id] = ev
@@ -223,6 +250,7 @@ async def diagnostic_stream(
                 # 输出事件
                 output_event = _LAYER_OUTPUT_EVENT.get(name, "agent_done")
                 output_payload = _build_layer_output(name, state)
+                print(f"[pipeline] layer={name} push={output_event} keys={list(output_payload.keys())[:6]}", flush=True)
                 await push(output_event, output_payload)
                 await push("agent_done", {"agent": name, "output": output_payload})
 
@@ -230,6 +258,7 @@ async def diagnostic_stream(
                 if name == "genetic" and result.get("current_backflow_to_hypothesis"):
                     if state.get("current_backflow_iterations", 0) < 2:
                         state["current_backflow_iterations"] += 1
+                        print(f"[pipeline] backflow genetic->hypothesis iteration={state['current_backflow_iterations']}", flush=True)
                         await push("safety_valve", {
                             "type": "cross_layer_conflict",
                             "message": "遗传推理与 Top-1 假设冲突，触发回流重评估",
@@ -242,6 +271,7 @@ async def diagnostic_stream(
                                 state.update(rstate)
                                 await push(_LAYER_OUTPUT_EVENT[rname], _build_layer_output(rname, state))
                             except Exception as e:
+                                print(f"[pipeline] reflow layer={rname} failed: {e}", flush=True)
                                 await push("error", {"code": "reflow_failed", "message": f"{rname}: {e}"})
                                 break
 
@@ -254,6 +284,7 @@ async def diagnostic_stream(
                         })
 
             # 报告（LLM 增强版）
+            print("[pipeline] layer=report start", flush=True)
             if pipeline_aborted:
                 await push("round_end", {"round": 1, "session_id": sid, "aborted": True})
                 return
@@ -261,8 +292,10 @@ async def diagnostic_stream(
             await push("agent_delta", {"agent": "report", "delta": "综合推理结果生成报告..."})
             report_result = await l6_run_llm(state, llm_gw)
             state.update(report_result)
-            await push("report_delta", report_result.get("report", {}))
-            await push("agent_done", {"agent": "report", "output": report_result.get("report", {})})
+            report_data = report_result.get("report", {})
+            print(f"[pipeline] layer=report done keys={list(report_data.keys())[:8]}", flush=True)
+            await push("report_delta", report_data)
+            await push("agent_done", {"agent": "report", "output": report_data})
 
             await push("round_end", {"round": 1, "session_id": sid})
         except Exception as e:
