@@ -24,6 +24,11 @@ def compute_cost_penalty(cost_tier: int) -> float:
 
 
 def compute_net_evoi(
+    hypotheses: list[DiseaseHypothesis],
+    test_catalog: list[dict[str, Any]],
+    profile: PhenotypeProfile,
+) -> DiagnosticPathway:
+    print(f"[evoi] compute_net_evoi start hypotheses={len(hypotheses)} tests={len(test_catalog)}", flush=True)
     test_sensitivity: float,
     test_specificity: float,
     n_hypotheses: int,

@@ -98,6 +98,11 @@ def _age_to_years(age: float | None, unit: str | None) -> float | None:
 
 
 def compute_temporal_match(
+    hypotheses: list[DiseaseHypothesis],
+    profile: PhenotypeProfile,
+    meta_db: dict[str, dict] | None = None,
+) -> list[TemporalMatch]:
+    print(f"[temporal] compute_temporal_match start hypotheses={len(hypotheses)}", flush=True)
     disease_id: str,
     disease_name: str,
     phenotype_profile: PhenotypeProfile,
