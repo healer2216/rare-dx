@@ -159,6 +159,14 @@ def start_caddy():
 
         def _proxy(self):
             path = self.path
+            # 健康检查直接返回 200，避免平台认为 upstream 不健康
+            if path in ("/health", "/healthz"):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok"}')
+                return
+
             # API 请求转发到后端
             if path.startswith("/api/"):
                 target = f"http://127.0.0.1:{BACKEND_PORT}{path}"
