@@ -188,19 +188,40 @@ def start_caddy():
                 with urllib.request.urlopen(req, timeout=300) as resp:
                     self.send_response(resp.status)
                     for key, value in resp.headers.items():
-                        if key.lower() not in ("transfer-encoding", "content-length"):
+                        if key.lower() not in ("transfer-encoding", "content-length", "connection"):
                             self.send_header(key, value)
+                    # 对 SSE 等长连接响应启用 chunked，避免平台/网关提前掐断
+                    if resp.headers.get("Content-Type", "").startswith("text/event-stream"):
+                        self.send_header("Cache-Control", "no-cache")
                     self.end_headers()
-                    self.wfile.write(resp.read())
+
+                    # 流式转发，不再一次性读完整体
+                    try:
+                        while True:
+                            chunk = resp.read(8192)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                            self.wfile.flush()
+                    except BrokenPipeError:
+                        # 客户端断开连接（正常关闭流）
+                        pass
             except urllib.error.HTTPError as e:
                 self.send_response(e.code)
                 self.end_headers()
-                self.wfile.write(e.read())
+                try:
+                    self.wfile.write(e.read())
+                except BrokenPipeError:
+                    pass
             except Exception as e:
-                self.send_response(502)
-                self.send_header("Content-Type", "text/plain")
-                self.end_headers()
-                self.wfile.write(f"Proxy error: {e}".encode())
+                print(f"[app.py] proxy error path={path} err={e}", flush=True)
+                try:
+                    self.send_response(502)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(f"Proxy error: {e}".encode())
+                except BrokenPipeError:
+                    pass
 
     server = http.server.HTTPServer(("0.0.0.0", PORT), ProxyHandler)
     print(f"[app.py] 反向代理已启动 -> 0.0.0.0:{PORT}", flush=True)

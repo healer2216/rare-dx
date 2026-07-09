@@ -87,6 +87,7 @@ def _serialize(obj: Any) -> Any:
 async def diagnostic_stream(
     user_message: str, session_id: str | None = None
 ) -> EventSourceResponse:
+    print(f"[sse] diagnostic_stream start user_message={user_message[:80]}... session_id={session_id}", flush=True)
     sid = session_id or f"s-{int(asyncio.get_event_loop().time() * 1000)}"
 
     event_queue: asyncio.Queue = asyncio.Queue()
