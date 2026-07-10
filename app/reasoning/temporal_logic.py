@@ -98,16 +98,13 @@ def _age_to_years(age: float | None, unit: str | None) -> float | None:
 
 
 def compute_temporal_match(
-    hypotheses: list[DiseaseHypothesis],
-    profile: PhenotypeProfile,
-    meta_db: dict[str, dict] | None = None,
-) -> list[TemporalMatch]:
-    print(f"[temporal] compute_temporal_match start hypotheses={len(hypotheses)}", flush=True)
     disease_id: str,
     disease_name: str,
     phenotype_profile: PhenotypeProfile,
     disease_meta: dict[str, Any],
 ) -> TemporalMatch:
+    """对单个疾病计算时序匹配评分（发病年龄 + 进展模式 + 症状序列）。"""
+    print(f"[temporal] compute_temporal_match start disease={disease_name}", flush=True)
     """Layer 3 核心：综合时序匹配评分。"""
     onset_meta = disease_meta.get("typical_onset", {})
     prog_meta = disease_meta.get("progression", {})

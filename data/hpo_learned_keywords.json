@@ -78,5 +78,13 @@
       "蝶形红斑"
     ],
     "default_modifiers": {}
+  },
+  {
+    "hpo_id": "HP:0001947",
+    "term_name": "代谢性酸中毒",
+    "keywords": [
+      "代谢性酸中毒"
+    ],
+    "default_modifiers": {}
   }
 ]

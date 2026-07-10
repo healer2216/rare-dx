@@ -160,10 +160,6 @@ def check_mendelian_consistency(
 
 
 def compute_genetic_constraint(
-    hypotheses: list[DiseaseHypothesis],
-    pedigree: dict[str, Any] | None = None,
-) -> tuple[GeneticConstraint | None, bool]:
-    print(f"[genetic] compute_genetic_constraint start hypotheses={len(hypotheses)} pedigree={pedigree}", flush=True)
     pedigree: dict | None,
     hypotheses: list,
     disease_meta_db: dict[str, dict],

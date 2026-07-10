@@ -185,7 +185,10 @@ def start_caddy():
                     headers=dict(self.headers),
                     method=self.command,
                 )
-                with urllib.request.urlopen(req, timeout=300) as resp:
+                # preload_content=False → 立即返回响应头（不预读响应体）
+                # 这对 SSE 长连接至关重要：否则 urlopen 会阻塞到连接关闭
+                resp = urllib.request.urlopen(req, timeout=300, preload_content=False)
+                try:
                     self.send_response(resp.status)
                     for key, value in resp.headers.items():
                         if key.lower() not in ("transfer-encoding", "content-length", "connection"):
@@ -195,7 +198,7 @@ def start_caddy():
                         self.send_header("Cache-Control", "no-cache")
                     self.end_headers()
 
-                    # 流式转发，不再一次性读完整体
+                    # 分块流式转发
                     try:
                         while True:
                             chunk = resp.read(8192)
@@ -206,6 +209,8 @@ def start_caddy():
                     except BrokenPipeError:
                         # 客户端断开连接（正常关闭流）
                         pass
+                finally:
+                    resp.release_conn()
             except urllib.error.HTTPError as e:
                 self.send_response(e.code)
                 self.end_headers()

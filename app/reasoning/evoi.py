@@ -24,11 +24,6 @@ def compute_cost_penalty(cost_tier: int) -> float:
 
 
 def compute_net_evoi(
-    hypotheses: list[DiseaseHypothesis],
-    test_catalog: list[dict[str, Any]],
-    profile: PhenotypeProfile,
-) -> DiagnosticPathway:
-    print(f"[evoi] compute_net_evoi start hypotheses={len(hypotheses)} tests={len(test_catalog)}", flush=True)
     test_sensitivity: float,
     test_specificity: float,
     n_hypotheses: int,
@@ -36,6 +31,7 @@ def compute_net_evoi(
     cost_tier: int,
     weights: tuple[float, float, float] = (0.6, 0.2, 0.2),
 ) -> dict:
+    """计算单个检查的净期望信息价值 (EVOI)。"""
     ig = compute_information_gain(test_sensitivity, test_specificity, n_hypotheses)
     rp = compute_risk_penalty(risk_level)
     cp = compute_cost_penalty(cost_tier)
