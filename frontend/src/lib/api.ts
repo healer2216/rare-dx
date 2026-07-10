@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { useSessionStore } from '@/store/session'
 
-const API_BASE = '/api'
+// dev 模式直接连后端（绕过 Next.js proxy，它不转发 SSE 心跳）
+// 生产环境走相对路径（由 modelscope_app.py 的 Python 代理处理）
+const API_BASE = process.env.NODE_ENV === 'development'
+  ? 'http://127.0.0.1:8765/api'
+  : '/api'
 
 // ========== SSE Client ==========
 
