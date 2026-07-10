@@ -311,21 +311,40 @@ async def diagnostic_stream(
     async def event_generator() -> AsyncGenerator[dict, None]:
         pipeline_task = asyncio.create_task(run_pipeline())
         last_push = asyncio.get_event_loop().time()
-        while True:
+
+        async def _read() -> dict | None:
             try:
-                event = await asyncio.wait_for(event_queue.get(), timeout=5)
+                return await asyncio.wait_for(event_queue.get(), timeout=5)
             except asyncio.TimeoutError:
-                # 每隔 15 秒推送 heartbeat，防止 ModelScope 反向代理因空闲超时掐断 SSE
+                return None
+
+        round_end_event: dict | None = None
+
+        # 阶段 1：yield 所有非终止事件 + heartbeat 保活
+        while True:
+            event = await _read()
+            if event is None:
                 now = asyncio.get_event_loop().time()
                 if now - last_push >= 15:
                     last_push = now
                     yield {"event": "heartbeat", "data": json.dumps({"ts": int(now)})}
                 continue
             last_push = asyncio.get_event_loop().time()
-            yield event
             if event.get("event") in ("round_end", "error"):
+                round_end_event = event
                 break
+            yield event
+
+        # 阶段 2：等 pipeline 完全结束，drain 残留事件，再发 round_end
         await pipeline_task
+        while not event_queue.empty():
+            try:
+                ev = event_queue.get_nowait()
+                yield ev
+            except Exception:
+                break
+        if round_end_event is not None:
+            yield round_end_event
 
     return EventSourceResponse(event_generator(), ping=None)
 

@@ -33,3 +33,4 @@ app/audit/
 # AtomCode local config（整个目录不推远端）
 .atomcode/
 .mcp.json
+data/hpo_learned_keywords.json
