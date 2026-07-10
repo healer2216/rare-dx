@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useSessionStore } from '@/store/session'
 
+const API_BASE = '/api'
+
 // ========== SSE Client ==========
 
 export interface SSEOptions {
