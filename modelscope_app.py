@@ -185,9 +185,10 @@ def start_caddy():
                     headers=dict(self.headers),
                     method=self.command,
                 )
-                # preload_content=False → 立即返回响应头（不预读响应体）
-                # 这对 SSE 长连接至关重要：否则 urlopen 会阻塞到连接关闭
-                resp = urllib.request.urlopen(req, timeout=300, preload_content=False)
+                # 注意：urllib.request.urlopen() 是标准库，不支持 preload_content
+                # （那是 urllib3 的参数）。std 的 urlopen 返回的 HTTPResponse
+                # 本身就是惰性读取的，read() 会按需返回数据，适合 SSE 流式转发。
+                resp = urllib.request.urlopen(req, timeout=300)
                 try:
                     self.send_response(resp.status)
                     for key, value in resp.headers.items():
@@ -210,7 +211,7 @@ def start_caddy():
                         # 客户端断开连接（正常关闭流）
                         pass
                 finally:
-                    resp.release_conn()
+                    resp.close()
             except urllib.error.HTTPError as e:
                 self.send_response(e.code)
                 self.end_headers()
