@@ -310,11 +310,18 @@ async def diagnostic_stream(
 
     async def event_generator() -> AsyncGenerator[dict, None]:
         pipeline_task = asyncio.create_task(run_pipeline())
+        last_push = asyncio.get_event_loop().time()
         while True:
             try:
                 event = await asyncio.wait_for(event_queue.get(), timeout=5)
             except asyncio.TimeoutError:
+                # 每隔 15 秒推送 heartbeat，防止 ModelScope 反向代理因空闲超时掐断 SSE
+                now = asyncio.get_event_loop().time()
+                if now - last_push >= 15:
+                    last_push = now
+                    yield {"event": "heartbeat", "data": json.dumps({"ts": int(now)})}
                 continue
+            last_push = asyncio.get_event_loop().time()
             yield event
             if event.get("event") in ("round_end", "error"):
                 break

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useSessionStore } from '@/store/session'
 import { listenSSE } from '@/lib/api'
 
+const HEARTBEAT_TIMEOUT = 30 // 30 秒无心跳则认为连接死亡
+
 export default function DiagnosticInput() {
   const [age, setAge] = useState('3 月龄')
   const [sex, setSex] = useState('男')
@@ -12,16 +14,28 @@ export default function DiagnosticInput() {
   )
   const store = useSessionStore()
   const cleanupRef = useRef<(() => void) | null>(null)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const userMessageRef = useRef('')
+  const sessionIdRef = useRef('')
 
   useEffect(() => {
-    // 组件卸载时关闭 SSE 连接
     return () => {
       if (cleanupRef.current) {
         cleanupRef.current()
         cleanupRef.current = null
       }
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+      }
     }
   }, [])
+
+  const clearReconnectTimer = () => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+  }
 
   const start = () => {
     const text = description.trim()
@@ -29,14 +43,25 @@ export default function DiagnosticInput() {
     store.reset()
     store.setStreaming(true)
     const sid = `s-${Date.now()}`
-    useSessionStore.setState({ sessionId: sid })
+    const um = text
+    sessionIdRef.current = sid
+    userMessageRef.current = um
 
-    // 先关闭旧连接
     if (cleanupRef.current) {
       cleanupRef.current()
+      cleanupRef.current = null
     }
+    clearReconnectTimer()
 
-    cleanupRef.current = listenSSE(text, sid, (event, data) => {
+    cleanupRef.current = listenSSE(um, sid, (event, data) => {
+      // 收到任何事件都重置心跳计时器
+      clearReconnectTimer()
+
+      if (event === 'heartbeat') {
+        // 后端保活心跳，无需处理
+        return
+      }
+
       store.addEvent(event, data)
       switch (event) {
         case 'phenotype_vector':
@@ -62,12 +87,70 @@ export default function DiagnosticInput() {
           break
         case 'round_end':
           useSessionStore.setState({ isStreaming: false, currentAgent: null })
+          cleanupRef.current = null
           break
         case 'error':
           useSessionStore.setState({ isStreaming: false })
+          cleanupRef.current = null
           break
       }
+    }, {
+      onStale: () => {
+        // SSE 连接疑似死亡，自动重连
+        console.warn('[frontend] SSE stale, reconnecting...')
+        if (cleanupRef.current) {
+          cleanupRef.current()
+          cleanupRef.current = null
+        }
+        // 用同一个 session_id 重连，后端会重新跑 pipeline
+        cleanupRef.current = listenSSE(userMessageRef.current, sessionIdRef.current, (event, data) => {
+          clearReconnectTimer()
+          if (event === 'heartbeat') return
+          store.addEvent(event, data)
+          switch (event) {
+            case 'phenotype_vector':
+              useSessionStore.setState({ phenotypeVectors: data.phenotypes || [] })
+              break
+            case 'hypothesis_ranking':
+              useSessionStore.setState({ hypotheses: data.hypotheses || [] })
+              break
+            case 'temporal_match':
+              useSessionStore.setState({ temporalMatches: data.matches || [] })
+              break
+            case 'inheritance_pattern':
+              useSessionStore.setState({ geneticConstraint: data })
+              break
+            case 'evoi_recommendation':
+              useSessionStore.setState({ pathway: data })
+              break
+            case 'report_delta':
+              useSessionStore.setState({ report: data })
+              break
+            case 'agent_start':
+              useSessionStore.setState({ currentAgent: data.agent })
+              break
+            case 'round_end':
+              useSessionStore.setState({ isStreaming: false, currentAgent: null })
+              cleanupRef.current = null
+              break
+            case 'error':
+              useSessionStore.setState({ isStreaming: false })
+              cleanupRef.current = null
+              break
+          }
+        })
+      },
     })
+
+    // 启动心跳超时检测
+    reconnectTimerRef.current = setTimeout(() => {
+      console.warn('[frontend] heartbeat timeout, closing stale SSE')
+      if (cleanupRef.current) {
+        cleanupRef.current()
+        cleanupRef.current = null
+      }
+      useSessionStore.setState({ isStreaming: false, currentAgent: null })
+    }, HEARTBEAT_TIMEOUT * 1000)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
