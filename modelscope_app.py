@@ -241,15 +241,25 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    # 启动后端并等待就绪
+    # 启动后端（不阻塞等待）
     backend = start_backend()
-    wait_for_backend(BACKEND_PORT, timeout=120)
-
-    # 启动前端（若不可用则仅保留下游 API 服务）
+    # 启动前端（不阻塞等待）
     frontend = start_frontend()
-    if frontend is not None:
-        wait_for_frontend(FRONTEND_PORT, timeout=120)
 
-    # 启动反向代理（统一端口 7860）
+    # 后台线程等待后端就绪（打印日志，不阻塞代理启动）
+    def _wait(name, proc, port, check_fn, timeout=120):
+        def _run():
+            ok = check_fn(port, timeout=timeout)
+            status = "就绪" if ok else "等待超时"
+            print(f"[app.py] {name} {status} (端口 {port})", flush=True)
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
+    _wait("后端", backend, BACKEND_PORT, wait_for_backend)
+    if frontend is not None:
+        _wait("前端", frontend, FRONTEND_PORT, wait_for_frontend)
+
+    # 立即启动代理（不等待后端/前端就绪）
+    # 这样 ModelScope 健康检查可以立即通过，不会报 "no healthy upstream"
     print(f"[app.py] rare-dx 已启动 -> http://0.0.0.0:{PORT}", flush=True)
     start_caddy()
