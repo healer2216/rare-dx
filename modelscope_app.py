@@ -185,11 +185,7 @@ def start_caddy():
                     headers=dict(self.headers),
                     method=self.command,
                 )
-                # 注意：urllib.request.urlopen() 是标准库，不支持 preload_content
-                # （那是 urllib3 的参数）。std 的 urlopen 返回的 HTTPResponse
-                # 本身就是惰性读取的，read() 会按需返回数据，适合 SSE 流式转发。
-                resp = urllib.request.urlopen(req, timeout=300)
-                try:
+                with urllib.request.urlopen(req, timeout=300) as resp:
                     self.send_response(resp.status)
                     for key, value in resp.headers.items():
                         if key.lower() not in ("transfer-encoding", "content-length", "connection"):
@@ -199,7 +195,7 @@ def start_caddy():
                         self.send_header("Cache-Control", "no-cache")
                     self.end_headers()
 
-                    # 分块流式转发
+                    # 流式转发，不再一次性读完整体
                     try:
                         while True:
                             chunk = resp.read(8192)
@@ -210,8 +206,6 @@ def start_caddy():
                     except BrokenPipeError:
                         # 客户端断开连接（正常关闭流）
                         pass
-                finally:
-                    resp.close()
             except urllib.error.HTTPError as e:
                 self.send_response(e.code)
                 self.end_headers()
