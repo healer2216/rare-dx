@@ -1,12 +1,12 @@
 # LLM Provider Configuration
 # 默认供应商及故障转移链
 
-default_provider: deepseek
+default_provider: stepfun
 fallback_chain:
-  - deepseek
-  - openai
-  - qwen
   - stepfun
+  - deepseek
+  - qwen
+  - openai
 
 providers:
   deepseek:
@@ -39,9 +39,9 @@ providers:
 
 # 各 Agent 推荐 LLM 选型
 agent_model_map:
-  phenotype_analyzer: deepseek
-  hypothesis_generator: deepseek
-  temporal_reasoner: deepseek
-  genetic_reasoner: openai
-  pathway_planner: deepseek
-  report_synthesizer: openai
+  phenotype_analyzer: stepfun
+  hypothesis_generator: stepfun
+  temporal_reasoner: stepfun
+  genetic_reasoner: stepfun
+  pathway_planner: stepfun
+  report_synthesizer: stepfun
